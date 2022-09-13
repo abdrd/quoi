@@ -35,7 +35,7 @@ string      ; utf-8 encoded strings
 There are lists.
 
 ```
-list int ux = @new list int ().     ; can pass initialization values in ()s. parens are required, even if
+list int ux = @listnew int ().      ; can pass initialization values in ()s. parens are required, even if
                                     ; there are not any values passed initially.
 ; append to list
 @listpush ux 1.
@@ -201,6 +201,7 @@ print                 ; take one (1) string to print to standard output.
 
 ; list functions
 
+@listnew type (args)                    ; very similar to @new. see lists section
 @listpush list value                    ; append to list
 @listget list idx                       ; get element with index idx in list
 @listreplace list idx new_value         ; replace element with index
