@@ -144,11 +144,11 @@ Branching:
 ```
 if <condition> {
 
-} [elseif <condition> {
+} elseif <condition> {
 
-} [else {
+} else {
 
-}]]
+}
 ```
 ```
 int n = 10.
@@ -172,7 +172,7 @@ Here's the list:
 ```
 print                 ; take one (1) string to print to standard output.
 
-; these take in 2 numbers, and return an integer result.
+; these take in numbers, and return an integer result.
 @add a b                ; add a, and b
 @sub a b                ; subtract a from b 
 @div a b                ; divide a, by b 
