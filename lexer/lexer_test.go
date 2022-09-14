@@ -2,18 +2,25 @@ package lexer
 
 import (
 	"fmt"
+	"quoi/token"
 	"testing"
 )
 
 func TestLexWs(t *testing.T) {
-	input := "\t\t\r\v\f"
-	input += "     	"
+	input := " "
+	input += "  \n   	"
 	l := New(input)
-	ws := l.lexWs()
-	fmt.Printf("ws: %+v\n", ws)
-	if ws.StartCol != 0 && ws.EndCol != 1 {
-		t.Errorf("ws pos wrong: %+v\n", ws)
-		return
+	for {
+		tok := l.NextToken()
+		fmt.Printf("ws: %+v\n", tok)
+		if tok.Type == token.EOF {
+			break
+		}
 	}
 	fmt.Println("l.pos: ", l.pos)
 }
+
+/*
+func TestLexInt(t *testing.T) {
+	input :=
+}*/

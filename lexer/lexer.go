@@ -101,13 +101,23 @@ func (l *Lexer) peekRune() rune {
 }
 
 func (l *Lexer) NextToken() token.Token {
-	c, err := l.readRune()
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return l.makeToken(token.EOF, l.pos.Column, "<<<EOF>>>")
+	c := l.peekRune()
+	if c == eof {
+		return l.makeToken(token.EOF, l.pos.Column, "<<<EOF>>>")
+	}
+	if c == '\n' {
+		t := l.makeToken(token.LF, l.pos.Column, "<lf>")
+		l.readRune()
+		return t
+	}
+	if c == '\r' {
+		start := l.pos.Column
+		if p := l.peekRune(); p == '\n' {
+			l.readRune()
+			t := l.makeToken(token.CRLF, start, "<crlf>")
+			l.readRune()
+			return t
 		}
-		// TODO ?
-		panic(err)
 	}
 	if l.isSpace(c) {
 		return l.lexWs()
@@ -121,6 +131,22 @@ func (l *Lexer) NextToken() token.Token {
 // (returned whitespace token will have a length of 1)
 func (l *Lexer) lexWs() token.Token {
 	startPos := l.pos.Column
+	c, err := l.readRune()
+	if err != nil {
+		// it is impossible that c is EOF
+		panic(err)
+	}
+	lit := string(c)
+	switch lit {
+	case "\t":
+		lit = "<escape-seq> (t)"
+	case "\v":
+		lit = "<escape-seq> (v)"
+	case "\f":
+		lit = "<escape-seq> (f)"
+	case "\r":
+		lit = "<escape-seq> (r)"
+	}
 	for {
 		p := l.peekRune()
 		if !(l.isSpace(p)) {
@@ -134,7 +160,7 @@ func (l *Lexer) lexWs() token.Token {
 			panic(err)
 		}
 	}
-	t := l.makeToken(token.WHITESPACE, startPos, " ")
+	t := l.makeToken(token.WHITESPACE, startPos, lit)
 	return t
 }
 
