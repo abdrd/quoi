@@ -65,8 +65,9 @@ datatype User {
 ; we do not have to pass values for every field of User here. they are set to zero values by default.
 ; No args: 
 ;   User u = @new User ().
-; See [Zero values][#zero-values]
-
+```
+See [Zero values](#zero-values)
+```
 User u = @new User (name: "John", age: 61).
 
 ; getters
