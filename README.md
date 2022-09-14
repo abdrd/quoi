@@ -236,7 +236,7 @@ print, printf, datatype, fun, int, string, bool, block, end, if, elseif, else, l
 - Statements end with dots.
 - Spacing is not strict. As long as you separate keywords with at least one whitespace character, the rest doesn't matter.
 - Escape sequences: 
-  - \           to escape any character (e.g. "C:\\" is "C:\", "\"" is escaping a quote, etc.)
+  - \           to escape any character (e.g. "C:\\\\" is "C:\\"; "\\"" is escaping a quote, etc.)
   - \n          line feed
   - \r          carriage return
   - \t          horizontal tab
