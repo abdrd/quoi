@@ -74,8 +74,9 @@ func (l *Lexer) readRune() (rune, error) {
 	c, _, err := l.buffer.ReadRune()
 	if c == '\n' {
 		l.resetPos()
+	} else {
+		l.pos.Column++
 	}
-	l.pos.Column++
 	return c, err
 }
 
@@ -121,7 +122,7 @@ func (l *Lexer) NextToken() token.Token {
 	}
 	if l.isSpace(c) {
 		return l.lexWs()
-	} else if l.isDigit(c) {
+	} else if l.isDigit(c) || c == '-' {
 		return l.lexInt()
 	}
 	return token.Token{}

@@ -12,7 +12,7 @@ func TestLexWs(t *testing.T) {
 	l := New(input)
 	for {
 		tok := l.NextToken()
-		fmt.Printf("ws: %+v\n", tok)
+		fmt.Printf("tok: %+v\n", tok)
 		if tok.Type == token.EOF {
 			break
 		}
@@ -20,7 +20,17 @@ func TestLexWs(t *testing.T) {
 	fmt.Println("l.pos: ", l.pos)
 }
 
-/*
 func TestLexInt(t *testing.T) {
-	input :=
-}*/
+	input := "212\n"
+	input += "1716"
+	input += "-315"
+	l := New(input)
+	for {
+		tok := l.NextToken()
+		fmt.Printf("tok: %+v\n", tok)
+		if tok.Type == token.EOF {
+			break
+		}
+	}
+	fmt.Println("l.pos: ", l.pos)
+}
