@@ -65,8 +65,9 @@ datatype User {
 ; we do not have to pass values for every field of User here. they are set to zero values by default.
 ; No args: 
 ;   User u = @new User ().
-; See [Zero values][#zero-values]
-
+```
+See [Zero values](#zero-values)
+```
 User u = @new User (name: "John", age: 61).
 
 ; getters
@@ -144,18 +145,18 @@ Branching:
 ```
 if <condition> {
 
-} [elseif <condition> {
+} elseif <condition> {
 
-} [else {
+} else {
 
-}]]
+}
 ```
 ```
 int n = 10.
 
 if @gt n 100 {
 
-} else if @eq n 11 {
+} elseif @eq n 11 {
 
 } else {
 
@@ -170,9 +171,14 @@ They usually start with the "at" symbol (@). Some of them produce values, while 
 
 Here's the list:
 ```
-print                 ; take one (1) string to print to standard output.
+print                   ; take one (1) string to print to standard output.
+printf                  ; take one (1) formatted string, and arguments needed. No newlines at the end.
+                            ; format specifiers: 
+                            ; %s        for strings
+                            ; %d        for integers
+                            ; %b        for bools
 
-; these take in 2 numbers, and return an integer result.
+; these take in numbers, and return an integer result.
 @add a b                ; add a, and b
 @sub a b                ; subtract a from b 
 @div a b                ; divide a, by b 
@@ -215,3 +221,82 @@ print                 ; take one (1) string to print to standard output.
 @set type field value
 ```
 See [datatype](#datatypes)   
+
+##### Keywords
+
+List of all keywords: 
+
+``` 
+print, printf, datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
+```
+
+--- 
+##### Some notes about the syntax
+
+- Statements end with dots.
+- Spacing is not strict. As long as you separate keywords with at least one whitespace character, the rest doesn't matter.
+- Escape sequences: 
+  - \           to escape any character (e.g. "C:\\\\" is "C:\\"; "\\"" is escaping a quote, etc.)
+  - \n          line feed
+  - \r          carriage return
+  - \t          horizontal tab
+- Newlines are required after every field in ```datatype``` declarations.
+
+##### Some notes about the semantics
+
+- Quoi is a procedural language.
+- It is explicitly, and statically typed.
+- It does not allow function overloading.
+- Functions can only be declared globally. No function declarations in other functions' bodies, or in any other block (ifs, loops, arbitrary blocks, etc.). 
+- No way to make a variable constant, but there is a convention that ```ALL_UPPERCASE``` variables are meant to be constants (like in Python).
+- You can create new blocks that have their own scopes, using ```block```, and ```end``` keywords.
+- Variables in a scope, cannot be accessed outside of said scope. It will raise some kind of a ```ReferenceError``` (like in Javascript).
+  - ```
+    int day = 15.
+    block 
+        int day = 30.
+        int age = 15.
+        print day.      ; prints 30
+                        ; if a global variable and a variable in a scope has the same name,
+                        ; and a (pseudo-)function references that name, then the function will
+                        ; use the one which is in the same block as it is. 
+    end
+    print day.          ; prints 15
+    print age.          ; reference error
+    ```
+- Ability to compose different types to create a compound data type, using the ```datatype``` keyword.
+- There are no methods attached to a data type, but you can just create functions that take in any data type.
+  - ```
+    datatype City {
+        string name
+        int founded_in
+    }
+
+    fun introduce_city(City c) -> string {
+        string res = @strconcat @get c name @strconcat " was founded in " @get c founded_in.
+        return res.
+    }
+    ```
+- No modules, packages, or a standard library.
+- No floats.
+- Only one looping construct (```loop``` keyword).
+- No manual memory management. Quoi programs are compiled to Go, and the Go runtime handles all the memory management using a garbage collector.
+- All the code is written in one file (this may change). There is no entry point to the program (a main function), so the instructions just run sequentially, top to bottom. Compiled Go code is in one file.
+- Global variables can be accessed anywhere in the program.
+- No pointers, but values are pass-by-reference; meaning when you pass an argument to a function, you basically pass a pointer to that argument, so the callee can change the argument's value.
+  - ```
+    int age = 30.
+
+    fun celebrate_birthday(int age) {
+        printf "\t\tHappy birthday\n".
+        print @strconcat 
+                    @strconcat 
+                        "You are now "
+                        @str age 
+                    " years old.".
+        @inc age.
+    }
+
+    celebrate_birthday(age).    ; ...
+    print age.                  ; 31
+    ```
