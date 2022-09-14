@@ -300,3 +300,6 @@ print, printf, datatype, fun, int, string, bool, block, end, if, elseif, else, l
     celebrate_birthday(age).    ; ...
     print age.                  ; 31
     ```
+- No function signatures.
+- Functions are not values. They cannot be assigned to variables.
+- We can reference functions before their declarations.
