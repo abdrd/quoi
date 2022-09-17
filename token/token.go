@@ -32,6 +32,7 @@ const (
 	OPENING_CURLY
 	CLOSING_CURLY
 	ARROW
+	EQUAL
 )
 
 func (t Type) String() string {
@@ -52,4 +53,14 @@ type Token struct {
 	Type      Type
 	Literal   string
 	Line, Col uint
+}
+
+// return new token
+func New(typ Type, lit string, line, col uint) Token {
+	return Token{
+		Type:    typ,
+		Literal: lit,
+		Line:    line,
+		Col:     col,
+	}
 }
