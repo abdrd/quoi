@@ -229,3 +229,85 @@ func TestLexStringError(t *testing.T) {
 	}
 	t.Logf("lexer errors: %+v", l.Errs)
 }
+
+func check1(t *testing.T, val token.Token, expectedLit string, expectedType token.Type) {
+	if val.Literal != expectedLit {
+		t.Errorf("expected literal '%s', but got '%s'\n", expectedLit, val.Literal)
+	}
+	if val.Type != expectedType {
+		t.Errorf("expected type '%s', but got '%s'\n", expectedType, val.Type)
+	}
+}
+
+func TestLexIdent(t *testing.T) {
+	input := "hello first_name _hey person15"
+	l := New(input)
+	hello := l.Next()
+	_ = l.Next()
+	first_name := l.Next()
+	_ = l.Next()
+	_hey := l.Next()
+	_ = l.Next()
+	person15 := l.Next()
+	check1(t, hello, "hello", token.IDENT)
+	check1(t, first_name, "first_name", token.IDENT)
+	check1(t, _hey, "_hey", token.IDENT)
+	check1(t, person15, "person15", token.IDENT)
+}
+
+func printErrs(t *testing.T, errs []Err) {
+	if len(errs) > 0 {
+		for i, e := range errs {
+			t.Logf("err#%d: %+v\n", i, e)
+		}
+	}
+}
+
+func printTok(t *testing.T, tok token.Token) {
+	t.Logf("Token_%s(Lit: %s, Line:Col(%d:%d)\n", tok.Type.String(), tok.Literal, tok.Line, tok.Col)
+}
+
+func TestLexIdentErrors(t *testing.T) {
+	input := "@hey"
+	l := New(input)
+	ill := l.Next()
+	hey := l.Next()
+	check1(t, ill, "@", token.ILLEGAL)
+	check1(t, hey, "hey", token.IDENT)
+	printTok(t, ill)
+	printTok(t, hey)
+}
+
+func TestLexKw(t *testing.T) {
+	input := "fun datatype if\nblock"
+	l := New(input)
+	fun := l.Next()
+	_ = l.Next()
+	datatype := l.Next()
+	_ = l.Next()
+	if_ := l.Next()
+	_ = l.Next()
+	block := l.Next()
+	check1(t, fun, "fun", token.FUN)
+	check1(t, datatype, "datatype", token.DATATYPE)
+	check1(t, if_, "if", token.IF)
+	check1(t, block, "block", token.BLOCK)
+}
+
+func TestLexSymbol(t *testing.T) {
+	input := "{.)->"
+	l := New(input)
+	lcurly := l.Next()
+	dot := l.Next()
+	closingParen := l.Next()
+	arrow := l.Next()
+	check1(t, lcurly, "{", token.OPENING_CURLY)
+	check1(t, dot, ".", token.DOT)
+	check1(t, closingParen, ")", token.CLOSING_PAREN)
+	check1(t, arrow, "->", token.ARROW)
+	printTok(t, lcurly)
+	printTok(t, dot)
+	printTok(t, closingParen)
+	printTok(t, arrow)
+	printErrs(t, l.Errs)
+}

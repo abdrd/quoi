@@ -3,6 +3,7 @@ package lexer
 import (
 	"fmt"
 	"quoi/token"
+	"strings"
 	"unicode"
 )
 
@@ -25,11 +26,14 @@ const (
 	stateLexWs
 	stateLexInt
 	stateLexString
+	stateLexIdentKw
+	stateLexSymbol // lexing symbols like {, ., ), etc.
 )
 
 const (
 	ErrUnclosedString ErrCode = iota
 	ErrInvalidNegativeInteger
+	ErrUnknownSymbol
 )
 
 type lexFn func(*Lexer) token.Token
@@ -48,9 +52,11 @@ type Lexer struct {
 
 func New(input string) *Lexer {
 	var lexFns = map[state]lexFn{
-		stateLexWs:     lexWs,
-		stateLexInt:    lexInt,
-		stateLexString: lexString,
+		stateLexWs:      lexWs,
+		stateLexInt:     lexInt,
+		stateLexString:  lexString,
+		stateLexIdentKw: lexIdentOrKw,
+		stateLexSymbol:  lexSymbol,
 	}
 	if len(input) == 0 {
 		panic("lexer.New: empty input string")
@@ -112,6 +118,12 @@ func isWhitespace(ch rune) bool {
 	return unicode.IsSpace(ch)
 }
 
+func isSymbol(ch rune) bool {
+	str := string(ch)
+	symbols := ".={}()-"
+	return strings.Contains(symbols, str)
+}
+
 type char byte
 
 const (
@@ -138,17 +150,22 @@ func lexWs(l *Lexer) token.Token {
 	lit := string(l.src[start:end])
 	// set state to stateStart, to determine the next lexFn in *Lexer.Next.
 	l.state = stateStart
-	return token.Token{
-		Type:    token.WHITESPACE,
-		Literal: lit,
-		Line:    l.line,
-		Col:     start,
-	}
+	return token.New(token.WHITESPACE, lit, l.line, start)
 }
 
 func lexInt(l *Lexer) token.Token {
 	start := l.pointer
 	if l.ch == '-' {
+		if p := l.peek(); p == '>' {
+			// this is an arrow symbol.
+			// we come across this here, because
+			// in Next, the 'else if' clause that checks if it is a
+			// integer comes before the clause that checks whether this
+			// is a symbol. and both integers, and the arrow symbol has minus
+			// at the beginning.
+			l.state = stateLexSymbol
+			return l.Next()
+		}
 		l.advance()
 	}
 	if !(isDigit(l.ch)) {
@@ -166,12 +183,7 @@ func lexInt(l *Lexer) token.Token {
 	}
 	lit := string(l.src[start:end])
 	l.state = stateStart
-	return token.Token{
-		Type:    token.INT,
-		Literal: lit,
-		Line:    l.line,
-		Col:     start,
-	}
+	return token.New(token.INT, lit, l.line, start)
 }
 
 func lexString(l *Lexer) token.Token {
@@ -195,12 +207,7 @@ func lexString(l *Lexer) token.Token {
 	}
 	lit := string(l.src[start:end])
 	l.state = stateStart
-	return token.Token{
-		Type:    token.STRING,
-		Literal: lit,
-		Line:    l.line,
-		Col:     start,
-	}
+	return token.New(token.STRING, lit, l.line, start)
 }
 
 func ignoreComment(l *Lexer) {
@@ -210,15 +217,74 @@ func ignoreComment(l *Lexer) {
 	l.state = stateStart
 }
 
+func lexIdentOrKw(l *Lexer) token.Token {
+	var kw = map[string]token.Type{
+		"print": token.PRINT, "printf": token.PRINTF, "datatype": token.DATATYPE, "fun": token.FUN,
+		"int": token.INT, "string": token.STRING, "bool": token.BOOL, "block": token.BLOCK,
+		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
+		"loop": token.LOOP, "return": token.RETURN,
+	}
+	start := l.pointer
+	for canBeAnIdentifierName(l.ch) || isDigit(l.ch) {
+		l.advance()
+	}
+	end := l.pointer
+	if l.hasReachedEOF {
+		end++
+		if l.ch != eof {
+			end--
+		}
+	}
+	lit := string(l.src[start:end])
+	keyword, isKw := kw[lit]
+	tok := token.New(token.IDENT, lit, l.line, start)
+	if isKw {
+		tok.Type = keyword
+	}
+	l.state = stateStart
+	return tok
+}
+
+func lexSymbol(l *Lexer) token.Token {
+	var symbols = map[byte]token.Type{
+		'.': token.DOT,
+		'=': token.EQUAL,
+		'{': token.OPENING_CURLY,
+		'}': token.CLOSING_CURLY,
+		'(': token.OPENING_PAREN,
+		')': token.CLOSING_PAREN,
+	}
+	start := l.col
+	if l.ch == '-' {
+		oldLit := string(l.ch)
+		l.advance()
+		if l.ch == eof {
+			l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'. did you mean '%s'?", string(l.ch), "->")
+			l.state = stateStart
+			l.advance() // just in case
+			return token.New(token.ILLEGAL, oldLit, l.line, start)
+		}
+		if l.ch == '>' {
+			l.advance()
+			l.state = stateStart
+			return token.New(token.ARROW, "->", l.line, start)
+		}
+	}
+	tok, found := symbols[byte(l.ch)]
+	lit := string(l.ch)
+	l.advance()
+	l.state = stateStart
+	if !(found) {
+		l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'", lit)
+		return token.New(token.ILLEGAL, lit, l.line, l.col)
+	}
+	return token.New(tok, lit, l.line, l.col)
+}
+
 func (l *Lexer) Next() token.Token {
 	if l.state == stateStart {
 		if l.ch == eof {
-			return token.Token{
-				Type:    token.EOF,
-				Literal: "<<<EOF>>>",
-				Line:    l.line,
-				Col:     l.col,
-			}
+			return token.New(token.EOF, "<<<EOF>>>", l.line, l.col)
 		}
 		if isWhitespace(l.ch) {
 			l.state = stateLexWs
@@ -229,11 +295,17 @@ func (l *Lexer) Next() token.Token {
 		} else if is(semicolon, l.ch) {
 			ignoreComment(l)
 			return l.Next()
+		} else if canBeAnIdentifierName(l.ch) {
+			l.state = stateLexIdentKw
+		} else if isSymbol(l.ch) {
+			l.state = stateLexSymbol
 		}
 	}
 	fn := l.lexFns[l.state]
 	if fn != nil {
 		return fn(l)
 	}
-	return token.Token{Type: token.ILLEGAL, Literal: string(l.ch)}
+	ill := token.New(token.ILLEGAL, string(l.ch), l.line, l.col)
+	l.advance()
+	return ill
 }
