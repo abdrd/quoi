@@ -6,8 +6,6 @@ const (
 	EOF Type = iota
 	ILLEGAL
 	WHITESPACE
-	LF
-	CRLF
 	IDENT
 	INT
 	STRING
@@ -39,8 +37,7 @@ const (
 func (t Type) String() string {
 	tt := map[Type]string{
 		EOF: "EOF", ILLEGAL: "ILLEGAL", WHITESPACE: "WHITESPACE",
-		LF: "LINE_FEED", CRLF: "CARRIAGE_RETURN_LINE_FEED", IDENT: "IDENTIFIER",
-		INT: "INTEGER", STRING: "STRING", BOOL: "BOOLEAN",
+		IDENT: "IDENTIFIER", INT: "INTEGER", STRING: "STRING", BOOL: "BOOLEAN",
 		PRINT: "PRINT", PRINTF: "PRINTF", DATATYPE: "DATATYPE", FUN: "FUN",
 		BLOCK: "BLOCK", END: "END", IF: "IF", ELSEIF: "ELSEIF", ELSE: "ELSE",
 		LOOP: "LOOP", RETURN: "RETURN", AT: "AT", SEMICOLON: "SEMICOLON",
@@ -52,8 +49,7 @@ func (t Type) String() string {
 }
 
 type Token struct {
-	Type             Type
-	Literal          string
-	StartCol, EndCol uint
-	Line             uint
+	Type      Type
+	Literal   string
+	Line, Col uint
 }
