@@ -1,0 +1,4 @@
+datatype City {
+    string name
+    int founded_in
+}
