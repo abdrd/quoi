@@ -27,13 +27,16 @@ const (
 	stateLexInt
 	stateLexString
 	stateLexIdentKw
-	stateLexSymbol // lexing symbols like {, ., ), etc.
+	stateLexSymbol   // lexing symbols like {, ., ), etc.
+	stateLexOperator // lexing pseudo-functions (e.g. @strconcat)
 )
 
 const (
 	ErrUnclosedString ErrCode = iota
 	ErrInvalidNegativeInteger
 	ErrUnknownSymbol
+	ErrNoOperatorNameAfterAt
+	ErrNewlineInString
 )
 
 type lexFn func(*Lexer) token.Token
@@ -52,11 +55,12 @@ type Lexer struct {
 
 func New(input string) *Lexer {
 	var lexFns = map[state]lexFn{
-		stateLexWs:      lexWs,
-		stateLexInt:     lexInt,
-		stateLexString:  lexString,
-		stateLexIdentKw: lexIdentOrKw,
-		stateLexSymbol:  lexSymbol,
+		stateLexWs:       lexWs,
+		stateLexInt:      lexInt,
+		stateLexString:   lexString,
+		stateLexIdentKw:  lexIdentOrKw,
+		stateLexSymbol:   lexSymbol,
+		stateLexOperator: lexOperator,
 	}
 	if len(input) == 0 {
 		panic("lexer.New: empty input string")
@@ -120,7 +124,7 @@ func isWhitespace(ch rune) bool {
 
 func isSymbol(ch rune) bool {
 	str := string(ch)
-	symbols := ".={}()-"
+	symbols := ".={}()-:,"
 	return strings.Contains(symbols, str)
 }
 
@@ -129,6 +133,7 @@ type char byte
 const (
 	doubleQuote char = '"'
 	semicolon   char = ';'
+	at          char = '@'
 )
 
 func is(char char, ch rune) bool {
@@ -137,20 +142,21 @@ func is(char char, ch rune) bool {
 
 func lexWs(l *Lexer) token.Token {
 	start := l.pointer
+	line := l.line
 	for isWhitespace(l.ch) {
 		l.advance()
-		if l.hasReachedEOF {
-			break
-		}
 	}
 	end := l.pointer
 	if l.hasReachedEOF {
-		end++
+		// if the last character is not a whitespace, don't pick it up
+		if isWhitespace(l.ch) {
+			end++
+		}
 	}
 	lit := string(l.src[start:end])
 	// set state to stateStart, to determine the next lexFn in *Lexer.Next.
 	l.state = stateStart
-	return token.New(token.WHITESPACE, lit, l.line, start)
+	return token.New(token.WHITESPACE, lit, line, start)
 }
 
 func lexInt(l *Lexer) token.Token {
@@ -190,9 +196,14 @@ func lexString(l *Lexer) token.Token {
 	// eat '"'
 	l.advance()
 	start := l.pointer
+	line := l.line
 	for !(is(doubleQuote, l.ch)) {
 		if l.hasReachedEOF {
 			l.errorf(ErrUnclosedString, int(l.pointer), int(l.line), "unexpected end-of-file: unclosed string")
+		}
+		// no newlines in strings
+		if l.ch == '\n' {
+			l.errorf(ErrNewlineInString, int(l.col), int(l.line), "illegal newline in string literal")
 		}
 		l.advance()
 	}
@@ -206,8 +217,14 @@ func lexString(l *Lexer) token.Token {
 		}
 	}
 	lit := string(l.src[start:end])
+	// test function: TestStringPrecedingWhitespace
+	if !(l.hasReachedEOF) {
+		if l.ch == '"' {
+			l.advance()
+		}
+	}
 	l.state = stateStart
-	return token.New(token.STRING, lit, l.line, start)
+	return token.New(token.STRING, lit, line, start)
 }
 
 func ignoreComment(l *Lexer) {
@@ -220,7 +237,7 @@ func ignoreComment(l *Lexer) {
 func lexIdentOrKw(l *Lexer) token.Token {
 	var kw = map[string]token.Type{
 		"print": token.PRINT, "printf": token.PRINTF, "datatype": token.DATATYPE, "fun": token.FUN,
-		"int": token.INT, "string": token.STRING, "bool": token.BOOL, "block": token.BLOCK,
+		"int": token.INTKW, "string": token.STRINGKW, "bool": token.BOOLKW, "block": token.BLOCK,
 		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
 		"loop": token.LOOP, "return": token.RETURN,
 	}
@@ -236,10 +253,18 @@ func lexIdentOrKw(l *Lexer) token.Token {
 		}
 	}
 	lit := string(l.src[start:end])
+	line := l.line
+	if l.ch == '\n' {
+		line--
+	}
 	keyword, isKw := kw[lit]
-	tok := token.New(token.IDENT, lit, l.line, start)
+	tok := token.New(token.IDENT, lit, line, start)
 	if isKw {
 		tok.Type = keyword
+	}
+	// bool literal
+	if lit == "true" || lit == "false" {
+		tok = token.New(token.BOOL, lit, line, start)
 	}
 	l.state = stateStart
 	return tok
@@ -253,6 +278,8 @@ func lexSymbol(l *Lexer) token.Token {
 		'}': token.CLOSING_CURLY,
 		'(': token.OPENING_PAREN,
 		')': token.CLOSING_PAREN,
+		':': token.COLON,
+		',': token.COMMA,
 	}
 	start := l.col
 	if l.ch == '-' {
@@ -281,6 +308,37 @@ func lexSymbol(l *Lexer) token.Token {
 	return token.New(tok, lit, l.line, l.col)
 }
 
+func lexOperator(l *Lexer) token.Token {
+	start := l.pointer
+	l.advance()
+	if l.hasReachedEOF {
+		l.errorf(ErrNoOperatorNameAfterAt, int(start), int(l.line), "unexpected end-of-file: no operator name after '@'")
+		return token.New(token.ILLEGAL, "@", l.line, start)
+	}
+	for canBeAnIdentifierName(l.ch) {
+		l.advance()
+	}
+	end := l.pointer
+	if l.hasReachedEOF {
+		// to include the last character in slicing.
+		// since we are at the last character, we have to
+		// get the slice *up to*, but not including, len(l.src).
+		end++
+	}
+	lit := string(l.src[start:end])
+	line := l.line
+	if l.ch == '\n' {
+		// if the last character is a newline, then decrement the local line
+		// variable by 1, because we do not want unmeaningful position information like
+		// col 34, line LAST_LINE+1.
+		line--
+	}
+	l.state = stateStart
+	return token.New(token.OPERATOR, lit, line, start)
+}
+
+// Entry point
+
 func (l *Lexer) Next() token.Token {
 	if l.state == stateStart {
 		if l.ch == eof {
@@ -299,6 +357,8 @@ func (l *Lexer) Next() token.Token {
 			l.state = stateLexIdentKw
 		} else if isSymbol(l.ch) {
 			l.state = stateLexSymbol
+		} else if is(at, l.ch) {
+			l.state = stateLexOperator
 		}
 	}
 	fn := l.lexFns[l.state]

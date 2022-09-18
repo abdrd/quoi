@@ -311,3 +311,182 @@ func TestLexSymbol(t *testing.T) {
 	printTok(t, arrow)
 	printErrs(t, l.Errs)
 }
+
+func TestLexNewlineInString(t *testing.T) {
+	input := `"Hello
+guys"`
+	l := New(input)
+	str := l.Next()
+	check1(t, str, "Hello\nguys", token.STRING)
+	printTok(t, str)
+	printErrs(t, l.Errs)
+}
+
+func TestLexBoolLiteral(t *testing.T) {
+	input := "true false"
+	l := New(input)
+	tr := l.Next()
+	_ = l.Next()
+	f := l.Next()
+	check1(t, tr, "true", token.BOOL)
+	check1(t, f, "false", token.BOOL)
+	printTok(t, tr)
+	printTok(t, f)
+	printErrs(t, l.Errs)
+}
+
+func TestStringPrecedingWhitespace(t *testing.T) {
+	input := `"Hello"  `
+	l := New(input)
+	str := l.Next()
+	ws := l.Next()
+	check1(t, str, "Hello", token.STRING)
+	check1(t, ws, "  ", token.WHITESPACE)
+	printTok(t, str)
+	printTok(t, ws)
+	printErrs(t, l.Errs)
+}
+
+func TestLexFunctionDef(t *testing.T) {
+	input := `fun greet(string name) -> string {
+	return @strconcat "Hello" name.
+}`
+	l := New(input)
+	want := []struct {
+		typ token.Type
+		lit string
+	}{
+		{token.FUN, "fun"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "greet"},
+		{token.OPENING_PAREN, "("},
+		{token.STRINGKW, "string"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "name"},
+		{token.CLOSING_PAREN, ")"},
+		{token.WHITESPACE, " "},
+		{token.ARROW, "->"},
+		{token.WHITESPACE, " "},
+		{token.STRINGKW, "string"},
+		{token.WHITESPACE, " "},
+		{token.OPENING_CURLY, "{"},
+		{token.WHITESPACE, "\n\t"},
+		{token.RETURN, "return"},
+		{token.WHITESPACE, " "},
+		{token.OPERATOR, "@strconcat"},
+		{token.WHITESPACE, " "},
+		{token.STRING, "Hello"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "name"},
+		{token.DOT, "."},
+		{token.WHITESPACE, "\n"},
+		{token.CLOSING_CURLY, "}"},
+		{token.EOF, "<<<EOF>>>"},
+	}
+	got := []token.Token{}
+	for {
+		tok := l.Next()
+		got = append(got, tok)
+		if tok.Type == token.EOF {
+			break
+		}
+	}
+	i := 0
+	for {
+		if i == len(want) || i == len(got) {
+			fmt.Println("end: ", len(want), len(got))
+			break
+		}
+		fmt.Printf("#%d: ", i)
+		check1(t, got[i], want[i].lit, want[i].typ)
+		i++
+	}
+	/*
+		for _, v := range got {
+			printTok(t, v)
+		}*/
+	printErrs(t, l.Errs)
+}
+
+func TestLexDatatype(t *testing.T) {
+	input := `datatype User {
+	string name
+	int age
+	string city
+}
+User mehmet = @new User (name: "Mehmet", age: 33, city: "Istanbul").`
+
+	l := New(input)
+	want := []struct {
+		typ token.Type
+		lit string
+	}{
+		{token.DATATYPE, "datatype"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "User"},
+		{token.WHITESPACE, " "},
+		{token.OPENING_CURLY, "{"},
+		{token.WHITESPACE, "\n\t"},
+		{token.STRINGKW, "string"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "name"},
+		{token.WHITESPACE, "\n\t"},
+		{token.INTKW, "int"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "age"},
+		{token.WHITESPACE, "\n\t"},
+		{token.STRINGKW, "string"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "city"},
+		{token.WHITESPACE, "\n"},
+		{token.CLOSING_CURLY, "}"},
+		{token.WHITESPACE, "\n"},
+		{token.IDENT, "User"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "mehmet"},
+		{token.WHITESPACE, " "},
+		{token.EQUAL, "="},
+		{token.WHITESPACE, " "},
+		{token.OPERATOR, "@new"},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "User"},
+		{token.WHITESPACE, " "},
+		{token.OPENING_PAREN, "("},
+		{token.IDENT, "name"},
+		{token.COLON, ":"},
+		{token.WHITESPACE, " "},
+		{token.STRING, "Mehmet"},
+		{token.COMMA, ","},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "age"},
+		{token.COLON, ":"},
+		{token.WHITESPACE, " "},
+		{token.INT, "33"},
+		{token.COMMA, ","},
+		{token.WHITESPACE, " "},
+		{token.IDENT, "city"},
+		{token.COLON, ":"},
+		{token.WHITESPACE, " "},
+		{token.STRING, "Istanbul"},
+		{token.CLOSING_PAREN, ")"},
+		{token.DOT, "."},
+	}
+	got := []token.Token{}
+	for {
+		tok := l.Next()
+		got = append(got, tok)
+		if tok.Type == token.EOF {
+			break
+		}
+	}
+	i := 0
+	for {
+		if i == len(want) || i == len(got) {
+			fmt.Println("end: ", len(want), len(got))
+			break
+		}
+		fmt.Printf("#%d: ", i)
+		check1(t, got[i], want[i].lit, want[i].typ)
+		i++
+	}
+}
