@@ -202,6 +202,7 @@ func lexString(l *Lexer) token.Token {
 	for !(is(doubleQuote, l.ch)) {
 		if l.hasReachedEOF {
 			l.errorf(ErrUnclosedString, int(l.pointer), int(l.line), "unexpected end-of-file: unclosed string")
+			break
 		}
 		// no newlines in strings
 		if l.ch == '\n' {
@@ -226,7 +227,8 @@ func lexString(l *Lexer) token.Token {
 		}
 	}
 	l.state = stateStart
-	return token.New(token.STRING, lit, line, start)
+	// start-1, because the starting position of a string is actually the position of first quote. (")
+	return token.New(token.STRING, lit, line, start-1)
 }
 
 func ignoreComment(l *Lexer) {

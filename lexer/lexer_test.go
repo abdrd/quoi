@@ -347,6 +347,14 @@ func TestStringPrecedingWhitespace(t *testing.T) {
 	printErrs(t, l.Errs)
 }
 
+func TestStartingWithString(t *testing.T) {
+	input := "\"hey "
+	l := New(input)
+	str := l.Next()
+	printErrs(t, l.Errs)
+	printTok(t, str)
+}
+
 func TestLexFunctionDef(t *testing.T) {
 	input := `fun greet(string name) -> string {
 	return @strconcat "Hello" name.
