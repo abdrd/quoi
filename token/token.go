@@ -7,9 +7,12 @@ const (
 	ILLEGAL
 	WHITESPACE
 	IDENT
-	INT
-	STRING
+	INT      // a literal int
+	INTKW    // keyword int
+	STRING   // a string literal
+	STRINGKW // string keyword
 	BOOL
+	BOOLKW
 	PRINT
 	PRINTF
 	DATATYPE
@@ -21,6 +24,7 @@ const (
 	ELSE
 	LOOP
 	RETURN
+	OPERATOR // psedo-functions	 (other than print, and printf)
 	AT
 	SEMICOLON
 	OPENING_PAREN
@@ -33,6 +37,8 @@ const (
 	CLOSING_CURLY
 	ARROW
 	EQUAL
+	COLON
+	COMMA
 )
 
 func (t Type) String() string {
@@ -45,6 +51,8 @@ func (t Type) String() string {
 		OPENING_PAREN: "OPENING_PAREN", CLOSING_PAREN: "CLOSING_PAREN",
 		BACKSLASH: "BACKSLASH", DOUBLE_QUOTE: "DOUBLE_QUOTE", UNDERSCORE: "UNDERSCORE",
 		DOT: "DOT", OPENING_CURLY: "OPENING_CURLY", CLOSING_CURLY: "CLOSING_CURLY", ARROW: "ARROW",
+		INTKW: "INT_KEYWORD", STRINGKW: "STRING_KW", BOOLKW: "BOOL_KEYWORD", OPERATOR: "OPERATOR",
+		COLON: "COLON", COMMA: ",",
 	}
 	return tt[t]
 }
