@@ -204,6 +204,7 @@ printf                  ; take one (1) formatted string, and arguments needed. N
 @strreplace s idx c     ; replace ^^^, with c
 @strindex s c           ; return the index of the first occurence of character c, in s
 @strconcat s s2         ; concatenate s, and s2
+@streq s s2
 
 ; list functions
 

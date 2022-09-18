@@ -185,7 +185,9 @@ func lexInt(l *Lexer) token.Token {
 	}
 	end := l.pointer
 	if l.hasReachedEOF {
-		end++
+		if isDigit(l.ch) {
+			end++
+		}
 	}
 	lit := string(l.src[start:end])
 	l.state = stateStart

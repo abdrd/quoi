@@ -1,0 +1,9 @@
+if @lt 5 6 {
+    print "Hello guys".
+}
+
+string weather = "sunny".
+
+fun is_weather_good() -> bool {
+    return @streq weather "sunny".
+}
