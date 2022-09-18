@@ -6,10 +6,10 @@ import (
 )
 
 type Parser struct {
-	tokens         []token.Token
-	pos, lenTokens uint
-	hasReachedEOF  bool // whether the next token's type is token.EOF
-	lexerErrors    []lexer.Err
+	tokens      []token.Token
+	ptr         uint
+	tok         token.Token // current token pointed to, by ptr
+	lexerErrors []lexer.Err
 }
 
 func New(l *lexer.Lexer) *Parser {
@@ -25,19 +25,23 @@ func New(l *lexer.Lexer) *Parser {
 		panic("lexer.New: error: len(tokens) is zero (0)")
 	}
 	p := &Parser{}
-	p.pos = 0
 	p.tokens = toks
-	p.lenTokens = uint(len(p.tokens))
-	p.hasReachedEOF = p.tokens[p.pos].Type == token.EOF
+	p.lexerErrors = l.Errs
 	return p
 }
 
-func (p *Parser) next() token.Token {
-	if p.pos == p.lenTokens-1 {
-		return p.tokens[p.lenTokens-1]
+// increment pointer
+func (p *Parser) move() {
+	if p.ptr == uint(len(p.tokens)) {
+		return
 	}
-	if p.pos == p.lenTokens-2 {
-		p.hasReachedEOF = true
+	p.ptr++
+	p.tok = p.tokens[p.ptr]
+}
+
+func (p *Parser) peek() token.Token {
+	if p.tok.Type == token.EOF {
+		return p.tok
 	}
-	return p.tokens[p.pos+1]
+	return p.tokens[p.ptr+1]
 }
