@@ -1,0 +1,8 @@
+(DATATYPE, datatype)
+(IDENTIFIER, City)
+(OPENING_CURLY, {)
+(STRING_KEYWORD, string)
+(IDENTIFIER, name)
+(INT_KEYWORD, int)
+(IDENTIFIER, founded_in)
+(CLOSING_CURLY, })
