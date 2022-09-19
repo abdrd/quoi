@@ -187,6 +187,7 @@ func lexInt(l *Lexer) token.Token {
 	if l.hasReachedEOF {
 		if isDigit(l.ch) {
 			end++
+			l.advance()
 		}
 	}
 	lit := string(l.src[start:end])
@@ -217,6 +218,7 @@ func lexString(l *Lexer) token.Token {
 		// don't pick it up
 		if l.ch == '"' {
 			end--
+			l.advance()
 		}
 	}
 	lit := string(l.src[start:end])

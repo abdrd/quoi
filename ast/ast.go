@@ -9,6 +9,10 @@ type Program struct {
 	Stmts []Statement
 }
 
+func (p *Program) PushStmt(stmt Statement) {
+	p.Stmts = append(p.Stmts, stmt)
+}
+
 type Node interface {
 	String() string
 }
@@ -17,19 +21,24 @@ type Expr interface {
 	Node
 }
 
+type ExprStmt interface {
+	Expr
+}
+
 type Statement interface {
 	Node
 	statement()
 }
 
-type StringLit struct {
+type StringLiteral struct {
 	Typ token.Type
 	Val string
 }
 
-func (s StringLit) String() string {
+func (s StringLiteral) String() string {
 	return fmt.Sprintf("\"%s\"", s.Val)
 }
+func (StringLiteral) statement() {}
 
 type IntLiteral struct {
 	Typ token.Type
@@ -39,6 +48,7 @@ type IntLiteral struct {
 func (i IntLiteral) String() string {
 	return fmt.Sprint(i.Val)
 }
+func (IntLiteral) statement() {}
 
 type BoolLiteral struct {
 	Typ token.Type
@@ -48,6 +58,7 @@ type BoolLiteral struct {
 func (b BoolLiteral) String() string {
 	return fmt.Sprint(b.Val)
 }
+func (BoolLiteral) statement() {}
 
 type VariableDeclaration struct {
 	Tok   token.Token // variable type
