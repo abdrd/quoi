@@ -355,6 +355,28 @@ func TestStartingWithString(t *testing.T) {
 	printTok(t, str)
 }
 
+func TestJustString(t *testing.T) {
+	input := `"Hey"`
+	l := New(input)
+	str := l.Next()
+	str2 := l.Next()
+	printTok(t, str)
+	printTok(t, str2)
+	printErrs(t, l.Errs)
+}
+
+func TestJustInt(t *testing.T) {
+	input := "1246-1516"
+	l := New(input)
+	_1246 := l.Next()
+	_m1516 := l.Next()
+	printTok(t, _1246)
+	printTok(t, _m1516)
+	printErrs(t, l.Errs)
+	printTok(t, l.Next())
+	printTok(t, l.Next())
+}
+
 func TestLexFunctionDef(t *testing.T) {
 	input := `fun greet(string name) -> string {
 	return @strconcat "Hello" name.
