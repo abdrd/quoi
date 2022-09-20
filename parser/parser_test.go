@@ -122,3 +122,18 @@ func TestParseVarDecl(t *testing.T) {
 	printErrs1(t, p.Errs)
 	printStmts(t, parsed.Stmts)
 }
+
+func TestParseVarDeclErr(t *testing.T) {
+	input := `
+		int age = "Hey".
+		int city = true.
+		string name = 67.
+		bool is_raining = true
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}

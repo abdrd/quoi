@@ -134,6 +134,7 @@ const (
 	doubleQuote char = '"'
 	semicolon   char = ';'
 	at          char = '@'
+	newline     char = '\n'
 )
 
 func is(char char, ch rune) bool {
@@ -234,7 +235,7 @@ func lexString(l *Lexer) token.Token {
 }
 
 func ignoreComment(l *Lexer) {
-	for is(semicolon, l.ch) {
+	for !(is(newline, l.ch)) {
 		l.advance()
 	}
 	l.state = stateStart
