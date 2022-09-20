@@ -71,6 +71,12 @@ func (p *Parser) move() {
 	p.tok = p.tokens[p.ptr]
 }
 
+// double move
+func (p *Parser) dmove() {
+	p.move()
+	p.move()
+}
+
 func (p *Parser) peek() token.Token {
 	hasNextToken := len(p.tokens)-2 >= int(p.ptr)
 	if hasNextToken {
@@ -124,7 +130,16 @@ loop:
 			if stmt := p.parseVariableDecl(); stmt != nil {
 				program.PushStmt(stmt)
 			}
-
+		// the dot may be here because ErrWrongType was appended to parser in parseVariableDecl.
+		// if we double move in parseVariableDecl, assuming there is a dot at the end, we are doing a wrong thing.
+		// there may not be a dot at the end when there is ErrWrongType in parseVariableDecl, and we can
+		// skip over an important keyword like int, string, etc.
+		// so when we come across a dot here, we know that we must skip over this dot HERE.
+		//
+		// if you don't understand what I am saying above, don't worry. I think I forgot English.
+		// I should probably go outside, and walk for a bit.
+		case token.DOT:
+			p.move()
 		default:
 			panic("Parse: error: NOT IMPLEMENTED: " + p.tok.Type.String())
 		}
