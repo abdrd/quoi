@@ -168,3 +168,15 @@ func TestParsePrintStmt(t *testing.T) {
 	printErrs1(t, p.Errs)
 	printStmts(t, parsed.Stmts)
 }
+
+func TestOperatorWithOneArg(t *testing.T) {
+	input := `
+		@inc a b.
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}

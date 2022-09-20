@@ -24,6 +24,9 @@ const (
 	ErrNoValue             // when we parse a variable's value but it turns out to be nil (no value)
 	ErrUnfinishedStatement // forgot dot
 	ErrUnexpectedEOF
+	ErrWrongNumberOfArgs
+	ErrUnknownOperator
+	ErrLonelyExpr // expressions that are not tied to any variable
 )
 
 type Parser struct {
@@ -152,8 +155,15 @@ loop:
 					program.PushStmt(stmt)
 				}
 			}
+			p.errorf(ErrLonelyExpr, p.tok.Line, p.tok.Col, "not used variable: value of this variable '%s' is not used", identTok.Literal)
+			p.move()
 		case token.PRINT:
 			if stmt := p.parsePrintStatement(); stmt != nil {
+				program.PushStmt(stmt)
+			}
+		// parse infix expression
+		case token.OPERATOR:
+			if stmt := p.parseOperator(); stmt != nil {
 				program.PushStmt(stmt)
 			}
 		default:
@@ -204,6 +214,11 @@ func (p *Parser) parseExpr() ast.Expr {
 		return p.parseBoolLiteral()
 	case token.IDENT:
 		return p.parseIdentifier()
+	case token.OPERATOR:
+		return p.parseOperator()
+	case token.DOT, token.EOF:
+		p.move()
+		return nil
 	default:
 		panic("parseExpr: error: NOT IMPLEMENTED: " + peek.Type.String())
 	}
@@ -314,4 +329,50 @@ func (p *Parser) parsePrintStatement() *ast.PrintStatement {
 	}
 	p.move() // skip dot
 	return s
+}
+
+func parseOperatorWith(p *Parser, nArgs int) *ast.PrefixExpr {
+	operatorLit := p.tok.Literal
+	pe := &ast.PrefixExpr{}
+	pe.Operator = p.tok
+	p.movews()
+	if nArgs == 0 || nArgs > 3 {
+		panic(fmt.Sprintf("parseOperatorWith: invalid nArgs: %d", nArgs))
+	}
+	line, col := p.tok.Line, p.tok.Col
+	for i := 0; i < nArgs; i++ {
+		expr := p.parseExpr()
+		if expr != nil {
+			pe.Args = append(pe.Args, expr)
+		}
+	}
+	switch nArgs {
+	case 1:
+		if len(pe.Args) != 1 {
+			p.errorf(ErrNoValue, line, col, "no value when calling an operator with one required parameter")
+			return nil
+		}
+	case 2:
+		if len(pe.Args) != 2 {
+			p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments to call '%s'. it needs two arguments", operatorLit)
+			return nil
+		}
+	case 3:
+		p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments to call '%s'. it needs three arguments", operatorLit)
+		return nil
+	}
+	return pe
+}
+
+func (p *Parser) parseOperator() *ast.PrefixExpr {
+	switch p.tok.Literal {
+	case "@new", "@listnew":
+		panic("implement these specials @new, @listnew, etc.")
+	case "@inc", "@dec", "@str", "@not":
+		return parseOperatorWith(p, 1)
+	case "@strreplace", "@listreplace":
+		return parseOperatorWith(p, 3)
+	default:
+		return parseOperatorWith(p, 2)
+	}
 }

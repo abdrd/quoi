@@ -113,3 +113,24 @@ func (p PrintStatement) String() string {
 	return fmt.Sprintf("print %s.", p.Arg.String())
 }
 func (PrintStatement) statement() {}
+
+/*
+arithmetic expressions, operators, ...
+some examples:
+	@str, @strconcat, @eq, @lt, @mul, etc.
+
+implements ExprStmt.
+*/
+type PrefixExpr struct {
+	Operator token.Token
+	Args     []Expr
+}
+
+func (p PrefixExpr) String() string {
+	res := p.Operator.Literal
+	for _, v := range p.Args {
+		res += " " + v.String()
+	}
+	return res
+}
+func (PrefixExpr) statement() {}
