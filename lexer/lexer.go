@@ -202,7 +202,7 @@ func lexString(l *Lexer) token.Token {
 	line := l.line
 	for !(is(doubleQuote, l.ch)) {
 		if l.hasReachedEOF {
-			l.errorf(ErrUnclosedString, int(l.pointer), int(l.line), "unexpected end-of-file: unclosed string")
+			l.errorf(ErrUnclosedString, int(l.col), int(l.line), "unexpected end-of-file: unclosed string")
 			break
 		}
 		// no newlines in strings
