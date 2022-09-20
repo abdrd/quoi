@@ -107,11 +107,11 @@ func printErrs1(t *testing.T, errs []Err) {
 	}
 }
 
-func TestParseVarDecl(t *testing.T) {
+func TestParseVarDecl1(t *testing.T) {
 	input := `
-		int age = 30.
-		string name = "Jennifer".
-		bool is_raining = true.`
+		int age= 30.
+		string name="Jennifer".
+		bool is_raining=       true.`
 	l := lexer.New(input)
 	p := New(l)
 	parsed := p.Parse()
@@ -129,6 +129,37 @@ func TestParseVarDeclErr(t *testing.T) {
 		int city = true.
 		string name = 67.
 		bool is_raining = true
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestParseReassignment(t *testing.T) {
+	input := `
+		name = "Abidin".
+		age=35.
+		age =65.
+		weather =  "Sunny".
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestParsePrintStmt(t *testing.T) {
+	input := `
+		print a.
+		print        16.
+		print "Hey, how are you?".
+		print true.
+		print false. print "hey this was false".
 	`
 	l := lexer.New(input)
 	p := New(l)

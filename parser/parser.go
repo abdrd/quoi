@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"os"
 	"quoi/ast"
 	"quoi/lexer"
 	"quoi/token"
@@ -22,6 +23,7 @@ const (
 	ErrWrongType           // for example, when you try to assign a string literal to a variable declared as of type int.
 	ErrNoValue             // when we parse a variable's value but it turns out to be nil (no value)
 	ErrUnfinishedStatement // forgot dot
+	ErrUnexpectedEOF
 )
 
 type Parser struct {
@@ -71,10 +73,11 @@ func (p *Parser) move() {
 	p.tok = p.tokens[p.ptr]
 }
 
-// double move
-func (p *Parser) dmove() {
-	p.move()
-	p.move()
+// if peek token is WHITESPACE, then move; else, don't do anything
+func (p *Parser) movews() {
+	if p.peek().Type == token.WHITESPACE {
+		p.move()
+	}
 }
 
 func (p *Parser) peek() token.Token {
@@ -100,7 +103,7 @@ func (p *Parser) Parse() *ast.Program {
 		for _, e := range p.lexerErrors {
 			fmt.Printf("[!] error %d: col:line(%d:%d) %s\n", e.ErrCode, e.Line, e.Column, e.Msg)
 		}
-		return nil
+		os.Exit(1)
 	}
 	program := &ast.Program{}
 loop:
@@ -140,6 +143,19 @@ loop:
 		// I should probably go outside, and walk for a bit.
 		case token.DOT:
 			p.move()
+		case token.IDENT:
+			identTok := p.tok
+			p.movews()
+			if p.peek().Type == token.EQUAL {
+				// reassignment
+				if stmt := p.parseReassignmentStatement(identTok); stmt != nil {
+					program.PushStmt(stmt)
+				}
+			}
+		case token.PRINT:
+			if stmt := p.parsePrintStatement(); stmt != nil {
+				program.PushStmt(stmt)
+			}
 		default:
 			panic("Parse: error: NOT IMPLEMENTED: " + p.tok.Type.String())
 		}
@@ -169,6 +185,30 @@ func (p *Parser) parseBoolLiteral() *ast.BoolLiteral {
 	return boo
 }
 
+func (p *Parser) parseIdentifier() *ast.Identifier {
+	i := &ast.Identifier{Tok: p.tok}
+	p.move()
+	return i
+}
+
+// decide depending on peek token
+func (p *Parser) parseExpr() ast.Expr {
+	peek := p.peek()
+	p.move()
+	switch peek.Type {
+	case token.STRING:
+		return p.parseStringLiteral()
+	case token.INT:
+		return p.parseIntLiteral()
+	case token.BOOL:
+		return p.parseBoolLiteral()
+	case token.IDENT:
+		return p.parseIdentifier()
+	default:
+		panic("parseExpr: error: NOT IMPLEMENTED: " + peek.Type.String())
+	}
+}
+
 func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 	v := &ast.VariableDeclaration{Tok: p.tok}
 	p.move() // move to ws
@@ -177,14 +217,14 @@ func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 		p.move()
 		return nil
 	}
-	v.Name = p.tok.Literal
-	p.move() // move to ws
+	v.Ident = &ast.Identifier{Tok: p.tok}
+	p.movews()
 	if eqOk, peek := p.expect(token.EQUAL), p.peek(); !(eqOk) {
 		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token: expected an equal sign, but got '%s'", peek.Type)
 		p.move()
 		return nil
 	}
-	p.move() // move to ws
+	p.movews()
 	// > right now, we only accept primitive literals (string, int, bool)
 	// > in the future we will have other expressions (prefix exprs., function calls, lists, ...).
 	switch v.Tok.Type {
@@ -233,4 +273,45 @@ func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 	}
 	p.move() // skip dot
 	return v
+}
+
+func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.ReassignmentStatement {
+	r := &ast.ReassignmentStatement{Tok: identTok, Ident: &ast.Identifier{Tok: identTok}}
+	p.movews()
+	if eqOk, peek := p.expect(token.EQUAL), p.peek(); !(eqOk) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token: expected an equal sign, got '%s'", peek.Type)
+		p.move()
+		return nil
+	}
+	p.movews()
+	r.NewValue = p.parseExpr()
+	if p.tok.Type != token.DOT {
+		p.errorf(ErrUnfinishedStatement, p.tok.Line, p.tok.Col, "unexpected token: need a dot at the end of a statement")
+		return nil
+	}
+	p.move()
+	return r
+}
+
+func (p *Parser) parsePrintStatement() *ast.PrintStatement {
+	s := &ast.PrintStatement{Tok: p.tok}
+	p.move() // move to ws
+	if peek := p.peek(); peek.Type == token.EOF {
+		p.errorf(ErrUnexpectedEOF, peek.Line, peek.Col, "unexpected end-of-file: expected an argument to 'print' statement")
+		p.move()
+		return nil
+	}
+	// parseExpr depends on peek, so, don't move here.
+	line, col := p.tok.Line, p.tok.Col
+	s.Arg = p.parseExpr()
+	if s.Arg == nil {
+		p.errorf(ErrNoValue, line, col, "print statement needs one argument, but none was given.")
+		return nil
+	}
+	if p.tok.Type != token.DOT {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: need a dot at the end of a print statement")
+		return nil
+	}
+	p.move() // skip dot
+	return s
 }
