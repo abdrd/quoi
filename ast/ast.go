@@ -60,9 +60,17 @@ func (b BoolLiteral) String() string {
 }
 func (BoolLiteral) statement() {}
 
+type Identifier struct {
+	Tok token.Token
+}
+
+func (i Identifier) String() string {
+	return i.Tok.Literal
+}
+
 type VariableDeclaration struct {
 	Tok   token.Token // variable type
-	Name  string      // variable name
+	Ident *Identifier // variable name
 	Value Expr        // variable value
 }
 
@@ -70,6 +78,38 @@ func (v VariableDeclaration) String() string {
 	if v.Value == nil {
 		return "VALUE (Expr) IS NIL"
 	}
-	return fmt.Sprintf("%s %s = %s.", v.Tok.Literal, v.Name, v.Value.String())
+	name := ""
+	if v.Ident != nil {
+		name = v.Ident.String()
+	}
+	return fmt.Sprintf("%s %s = %s.", v.Tok.Literal, name, v.Value.String())
 }
 func (VariableDeclaration) statement() {}
+
+type ReassignmentStatement struct {
+	Tok      token.Token // IDENT token
+	Ident    *Identifier
+	NewValue Expr
+}
+
+func (r ReassignmentStatement) String() string {
+	if r.NewValue == nil {
+		return "NEW VALUE (Expr) IS NIL"
+	}
+	name := ""
+	if r.Ident != nil {
+		name = r.Ident.String()
+	}
+	return fmt.Sprintf("%s = %s.", name, r.NewValue.String())
+}
+func (ReassignmentStatement) statement() {}
+
+type PrintStatement struct {
+	Tok token.Token
+	Arg Expr
+}
+
+func (p PrintStatement) String() string {
+	return fmt.Sprintf("print %s.", p.Arg.String())
+}
+func (PrintStatement) statement() {}
