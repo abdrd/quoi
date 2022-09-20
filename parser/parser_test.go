@@ -98,3 +98,27 @@ func TestParseBoolLit(t *testing.T) {
 	}
 	printStmts(t, parsed.Stmts)
 }
+
+func printErrs1(t *testing.T, errs []Err) {
+	if len(errs) > 0 {
+		for i, e := range errs {
+			t.Logf("error#%d: %+v\n", i, e)
+		}
+	}
+}
+
+func TestParseVarDecl(t *testing.T) {
+	input := `
+		int age = 30.
+		string name = "Jennifer".
+		bool is_raining = true.`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	if len(parsed.Stmts) != 3 {
+		t.Errorf("1: %d\n", len(parsed.Stmts))
+	}
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}

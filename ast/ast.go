@@ -72,3 +72,4 @@ func (v VariableDeclaration) String() string {
 	}
 	return fmt.Sprintf("%s %s = %s.", v.Tok.Literal, v.Name, v.Value.String())
 }
+func (VariableDeclaration) statement() {}
