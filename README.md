@@ -194,8 +194,12 @@ printf                  ; take one (1) formatted string, and arguments needed. N
 @gte a b                ; return a >= b
 @lte a b                ; return a <= b
 @eq a b                 ; return whether a is equal to b
-@not a                  ; negate a boolean value
 @neq a b                ; the opposite of @eq
+
+; logical operators
+@and a b                ; logical and
+@or a b                 ; logical or
+@not a                  ; negate a boolean value
 
 ; string functions
 ; return strings

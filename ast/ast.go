@@ -149,3 +149,13 @@ func (b BlockStatement) String() string {
 	return res
 }
 func (BlockStatement) statement() {}
+
+type ReturnStatement struct {
+	Tok  token.Token
+	Expr Expr
+}
+
+func (r ReturnStatement) String() string {
+	return fmt.Sprintf("return %s.", r.Expr.String())
+}
+func (ReturnStatement) statement() {}

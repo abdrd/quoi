@@ -196,7 +196,25 @@ func TestOperatorWithTwoArgs(t *testing.T) {
 
 func TestOperatorWithThreeArgs(t *testing.T) {
 	input := `
-		@strreplace s 1 "h"
+		@strreplace s 1 "h" a Heh
+		block 
+			print "hey".
+		end
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestOperatorUnknown(t *testing.T) {
+	input := `
+		@unknown "he" "he" a
+		block 
+			print a.
+		end
 	`
 	l := lexer.New(input)
 	p := New(l)
@@ -239,8 +257,38 @@ func TestBlock3(t *testing.T) {
 		end
 		block 
 			print "Hello world!".
-		end
+		end.
 	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestReturn1(t *testing.T) {
+	input := "return."
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestReturn2(t *testing.T) {
+	input := "return \"hello guys\""
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestReturn3(t *testing.T) {
+	input := `return @strconcat "Hello " "world".`
 	l := lexer.New(input)
 	p := New(l)
 	parsed := p.Parse()
