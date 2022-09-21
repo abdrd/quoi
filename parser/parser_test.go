@@ -296,3 +296,41 @@ func TestReturn3(t *testing.T) {
 	printErrs1(t, p.Errs)
 	printStmts(t, parsed.Stmts)
 }
+
+func TestLoop1(t *testing.T) {
+	input := `
+		loop  {}
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestLoop2(t *testing.T) {
+	input := `
+		loop @lte 5 5 {
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestLoop3(t *testing.T) {
+	input := `
+		loop @lte 5 5 {
+			print "Heeey".
+		}
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}

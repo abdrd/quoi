@@ -159,3 +159,27 @@ func (r ReturnStatement) String() string {
 	return fmt.Sprintf("return %s.", r.Expr.String())
 }
 func (ReturnStatement) statement() {}
+
+type LoopStatement struct {
+	Tok   token.Token
+	Cond  Expr
+	Stmts []Statement
+}
+
+func (l LoopStatement) String() string {
+	res := "loop "
+	if l.Cond == nil {
+		res = "loop {"
+	}
+	res += l.Cond.String() + " {"
+	if len(l.Stmts) == 0 {
+		res += " }"
+	} else {
+		for _, s := range l.Stmts {
+			res += "\n\t" + s.String()
+		}
+		res += "\n}"
+	}
+	return res
+}
+func (LoopStatement) statement() {}

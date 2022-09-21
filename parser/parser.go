@@ -91,6 +91,12 @@ func (p *Parser) movews() {
 	}
 }
 
+// double move
+func (p *Parser) dmove() {
+	p.move()
+	p.move()
+}
+
 func (p *Parser) peek() token.Token {
 	hasNextToken := len(p.tokens)-2 >= int(p.ptr)
 	if hasNextToken {
@@ -200,6 +206,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parseReturnStatement(); stmt != nil {
 			return stmt
 		}
+	case token.LOOP:
+		if stmt := p.parseLoopStatement(); stmt != nil {
+			return stmt
+		}
 	default:
 		panic("parseStatement: error: NOT IMPLEMENTED: " + p.tok.Type.String())
 	}
@@ -252,6 +262,7 @@ func (p *Parser) parseExpr() ast.Expr {
 	}
 	return nil
 }
+
 func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 	v := &ast.VariableDeclaration{Tok: p.tok}
 	p.move() // move to ws
@@ -475,4 +486,44 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	}
 	p.move()
 	return r
+}
+
+func (p *Parser) parseLoopStatement() *ast.LoopStatement {
+	l := &ast.LoopStatement{Tok: p.tok}
+	p.movews()
+	line, col := p.tok.Line, p.tok.Col
+	cond := p.parseExpr()
+	if cond == nil {
+		p.errorf(ErrNoValue, line, col, "missing condition in loop statement")
+		p.move() // skip {
+		if p.tok.Type == token.CLOSING_CURLY {
+			p.move() // skip }
+		}
+		return nil
+	}
+	l.Cond = cond
+	if p.tok.Type != token.OPENING_CURLY {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected an opening curly brace, got '%s'", p.tok.Type)
+		p.move()
+		return nil
+	}
+	p.move()
+	for {
+		if p.tok.Type == token.EOF {
+			p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed loop statement")
+			return nil
+		}
+		if p.tok.Type == token.CLOSING_CURLY {
+			break
+		}
+		if stmt := p.parseStatement(); stmt != nil {
+			l.Stmts = append(l.Stmts, stmt)
+		}
+	}
+	if p.tok.Type != token.CLOSING_CURLY {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected a closing curly brace, got '%s'", p.tok.Type)
+		return nil
+	}
+	p.move()
+	return l
 }
