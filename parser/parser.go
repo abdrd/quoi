@@ -111,69 +111,88 @@ func (p *Parser) Parse() *ast.Program {
 	program := &ast.Program{}
 loop:
 	for {
-		switch p.tok.Type {
-		case token.EOF:
+		if p.tok.Type == token.EOF {
 			break loop
-		case token.WHITESPACE:
-			p.move()
-			continue
-		// string literal
-		case token.STRING:
-			// no need to check nil for this method, but there's no harm in doing just that
-			if stmt := p.parseStringLiteral(); stmt != nil {
-				program.PushStmt(stmt)
-			}
-		case token.INT:
-			if stmt := p.parseIntLiteral(); stmt != nil {
-				program.PushStmt(stmt)
-			}
-		case token.BOOL:
-			if stmt := p.parseBoolLiteral(); stmt != nil {
-				program.PushStmt(stmt)
-			}
-		// parse variable declarations with primitive types
-		case token.STRINGKW, token.INTKW, token.BOOLKW:
-			if stmt := p.parseVariableDecl(); stmt != nil {
-				program.PushStmt(stmt)
-			}
-		// the dot may be here because ErrWrongType was appended to parser in parseVariableDecl.
-		// if we double move in parseVariableDecl, assuming there is a dot at the end, we are doing a wrong thing.
-		// there may not be a dot at the end when there is ErrWrongType in parseVariableDecl, and we can
-		// skip over an important keyword like int, string, etc.
-		// so when we come across a dot here, we know that we must skip over this dot HERE.
-		//
-		// if you don't understand what I am saying above, don't worry. I think I forgot English.
-		// I should probably go outside, and walk for a bit.
-		case token.DOT:
-			p.move()
-		case token.IDENT:
-			identTok := p.tok
-			p.movews()
-			if p.peek().Type == token.EQUAL {
-				// reassignment
-				if stmt := p.parseReassignmentStatement(identTok); stmt != nil {
-					program.PushStmt(stmt)
-				}
-			}
-			p.errorf(ErrLonelyExpr, p.tok.Line, p.tok.Col, "not used variable: value of this variable '%s' is not used", identTok.Literal)
-			p.move()
-		case token.PRINT:
-			if stmt := p.parsePrintStatement(); stmt != nil {
-				program.PushStmt(stmt)
-			}
-		// parse infix expression
-		case token.OPERATOR:
-			if stmt := p.parseOperator(); stmt != nil {
-				program.PushStmt(stmt)
-			}
-		default:
-			panic("Parse: error: NOT IMPLEMENTED: " + p.tok.Type.String())
+		}
+		if stmt := p.parseStatement(); stmt != nil {
+			program.PushStmt(stmt)
 		}
 	}
 	return program
 }
 
 // > advance parser at the end
+
+func (p *Parser) parseStatement() ast.Statement {
+	// we are doing "if-stmt-is-not-nil" checks here because when calling this function in *Parser.Parse,
+	// "if p.parseStatement() != nil" checks do not work. This may be because Statement is an interface,
+	// and even if a pointer to a struct that implements ast.Statement is nil, *Parser.Parse thinks
+	// it is not nil, because the actual pointer-to-struct type is "hidden" behind an interface
+	// (ast.Statement).
+	//
+	// Am I guessing correct?
+
+	switch p.tok.Type {
+	case token.WHITESPACE:
+		p.move()
+	// string literal
+	case token.STRING:
+		// no need to check nil for this method, but there's no harm in doing just that
+		if stmt := p.parseStringLiteral(); stmt != nil {
+			return stmt
+		}
+	case token.INT:
+		if stmt := p.parseIntLiteral(); stmt != nil {
+			return stmt
+		}
+	case token.BOOL:
+		if stmt := p.parseBoolLiteral(); stmt != nil {
+			return stmt
+		}
+	// parse variable declarations with primitive types
+	case token.STRINGKW, token.INTKW, token.BOOLKW:
+		if stmt := p.parseVariableDecl(); stmt != nil {
+			return stmt
+		}
+	// the dot may be here because ErrWrongType was appended to parser in parseVariableDecl.
+	// if we double move in parseVariableDecl, assuming there is a dot at the end, we are doing a wrong thing.
+	// there may not be a dot at the end when there is ErrWrongType in parseVariableDecl, and we can
+	// skip over an important keyword like int, string, etc.
+	// so when we come across a dot here, we know that we must skip over this dot HERE.
+	//
+	// if you don't understand what I am saying above, don't worry. I think I forgot English.
+	// I should probably go outside, and walk for a bit.
+	case token.DOT:
+		p.move()
+	case token.IDENT:
+		identTok := p.tok
+		p.movews()
+		if p.peek().Type == token.EQUAL {
+			// reassignment
+			if stmt := p.parseReassignmentStatement(identTok); stmt != nil {
+				return stmt
+			}
+		}
+		p.errorf(ErrLonelyExpr, p.tok.Line, p.tok.Col, "not used variable: value of this variable '%s' is not used", identTok.Literal)
+		p.move()
+	case token.PRINT:
+		if stmt := p.parsePrintStatement(); stmt != nil {
+			return stmt
+		}
+	// parse infix expression
+	case token.OPERATOR:
+		if stmt := p.parseOperator(); stmt != nil {
+			return stmt
+		}
+	case token.BLOCK:
+		if stmt := p.parseBlockStatement(); stmt != nil {
+			return stmt
+		}
+	default:
+		panic("parseStatement: error: NOT IMPLEMENTED: " + p.tok.Type.String())
+	}
+	return nil
+}
 
 func (p *Parser) parseStringLiteral() *ast.StringLiteral {
 	s := &ast.StringLiteral{Typ: p.tok.Type, Val: p.tok.Literal}
@@ -354,12 +373,14 @@ func parseOperatorWith(p *Parser, nArgs int) *ast.PrefixExpr {
 		}
 	case 2:
 		if len(pe.Args) != 2 {
-			p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments to call '%s'. it needs two arguments", operatorLit)
+			p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments (%d) to call '%s'. it needs two arguments", len(pe.Args), operatorLit)
 			return nil
 		}
 	case 3:
-		p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments to call '%s'. it needs three arguments", operatorLit)
-		return nil
+		if len(pe.Args) != 3 {
+			p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments (%d) to call '%s'. it needs three arguments", len(pe.Args), operatorLit)
+			return nil
+		}
 	}
 	return pe
 }
@@ -375,4 +396,21 @@ func (p *Parser) parseOperator() *ast.PrefixExpr {
 	default:
 		return parseOperatorWith(p, 2)
 	}
+}
+
+func (p *Parser) parseBlockStatement() *ast.BlockStatement {
+	b := &ast.BlockStatement{Tok: p.tok}
+	p.movews()
+	for p.tok.Type != token.END {
+		if p.tok.Type == token.EOF {
+			p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed block statement")
+			p.move()
+			return nil
+		}
+		if stmt := p.parseStatement(); stmt != nil {
+			b.Stmts = append(b.Stmts, stmt)
+		}
+	}
+	p.move()
+	return b
 }
