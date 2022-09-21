@@ -134,3 +134,18 @@ func (p PrefixExpr) String() string {
 	return res
 }
 func (PrefixExpr) statement() {}
+
+type BlockStatement struct {
+	Tok   token.Token
+	Stmts []Statement
+}
+
+func (b BlockStatement) String() string {
+	res := "block"
+	for _, v := range b.Stmts {
+		res += "\n\t" + v.String()
+	}
+	res += "\nend"
+	return res
+}
+func (BlockStatement) statement() {}

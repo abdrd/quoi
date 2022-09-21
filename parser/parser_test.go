@@ -128,13 +128,14 @@ func TestParseVarDeclErr(t *testing.T) {
 		int age = "Hey".
 		int city = true.
 		string name = 67.
-		bool is_raining = true
+		bool is_raining = true.
 	`
 	l := lexer.New(input)
 	p := New(l)
 	parsed := p.Parse()
 	printErrs(t, p.lexerErrors)
 	printErrs1(t, p.Errs)
+	fmt.Println("err: ", len(parsed.Stmts))
 	printStmts(t, parsed.Stmts)
 }
 
@@ -171,7 +172,74 @@ func TestParsePrintStmt(t *testing.T) {
 
 func TestOperatorWithOneArg(t *testing.T) {
 	input := `
-		@inc a b.
+		@inc a  .
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestOperatorWithTwoArgs(t *testing.T) {
+	input := `
+		@gte a b.
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestOperatorWithThreeArgs(t *testing.T) {
+	input := `
+		@strreplace s 1 "h"
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestBlock1(t *testing.T) {
+	input := `
+		block
+		end
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestBlock2(t *testing.T) {
+	input := `
+		block
+	`
+	l := lexer.New(input)
+	p := New(l)
+	parsed := p.Parse()
+	printErrs(t, p.lexerErrors)
+	printErrs1(t, p.Errs)
+	printStmts(t, parsed.Stmts)
+}
+
+func TestBlock3(t *testing.T) {
+	input := `
+		block
+			print a.
+			print @lte 5 5.
+		end
+		block 
+			print "Hello world!".
+		end
 	`
 	l := lexer.New(input)
 	p := New(l)
