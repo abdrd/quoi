@@ -183,3 +183,37 @@ func (l LoopStatement) String() string {
 	return res
 }
 func (LoopStatement) statement() {}
+
+type DatatypeField struct {
+	Tok   token.Token
+	Ident *Identifier
+}
+
+func (d DatatypeField) String() string {
+	return fmt.Sprintf("%s %s", d.Tok.Literal, d.Ident.String())
+}
+
+type DatatypeDeclaration struct {
+	Tok    token.Token
+	Name   *Identifier
+	Fields []*DatatypeField
+}
+
+func (d DatatypeDeclaration) String() string {
+	res := "datatype "
+	if d.Name != nil {
+		res += d.Name.String() + " {"
+	}
+	if len(d.Fields) == 0 {
+		res += " }"
+		return res
+	}
+	for _, v := range d.Fields {
+		field := v.String()
+		field = "\n\t" + field
+		res += field
+	}
+	res += "\n}"
+	return res
+}
+func (DatatypeDeclaration) statement() {}

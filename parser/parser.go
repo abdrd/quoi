@@ -6,6 +6,7 @@ import (
 	"quoi/ast"
 	"quoi/lexer"
 	"quoi/token"
+	"strings"
 )
 
 type ErrCode int
@@ -27,6 +28,8 @@ const (
 	ErrWrongNumberOfArgs
 	ErrUnknownOperator
 	ErrLonelyExpr // expressions that are not tied to any variable
+	ErrMissingNewline
+	ErrInvalidTokenForDatatypeField
 )
 
 type Parser struct {
@@ -66,14 +69,6 @@ func (p *Parser) errorf(errCode ErrCode, line, col uint, formatMsg string, elems
 	})
 }
 
-// return last error appended to p.Errs, and a boolean value representing len(p.Errs) > 0
-func (p *Parser) lastErr() (Err, bool) {
-	if len(p.Errs) > 0 {
-		return p.Errs[len(p.Errs)-1], true
-	}
-	return Err{}, false
-}
-
 // set p.tok to the next token
 func (p *Parser) move() {
 	outOfBounds := len(p.tokens)-1 == int(p.ptr)
@@ -89,12 +84,6 @@ func (p *Parser) movews() {
 	if p.peek().Type == token.WHITESPACE {
 		p.move()
 	}
-}
-
-// double move
-func (p *Parser) dmove() {
-	p.move()
-	p.move()
 }
 
 func (p *Parser) peek() token.Token {
@@ -193,7 +182,7 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parsePrintStatement(); stmt != nil {
 			return stmt
 		}
-	// parse infix expression
+	// parse prefix expression
 	case token.OPERATOR:
 		if stmt := p.parseOperator(); stmt != nil {
 			return stmt
@@ -208,6 +197,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 	case token.LOOP:
 		if stmt := p.parseLoopStatement(); stmt != nil {
+			return stmt
+		}
+	case token.DATATYPE:
+		if stmt := p.parseDatatypeDeclaration(); stmt != nil {
 			return stmt
 		}
 	default:
@@ -526,4 +519,104 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	}
 	p.move()
 	return l
+}
+
+func (p *Parser) parseDatatypeField() *ast.DatatypeField {
+	// require newline at the end of every field
+	f := &ast.DatatypeField{Tok: p.tok}
+	switch p.tok.Type {
+	case token.INTKW, token.STRINGKW, token.BOOLKW, token.IDENT:
+		p.movews()
+		if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
+			p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "missing identifier: expected an identifier in datatype field")
+			p.move()
+			return nil
+		}
+		f.Ident = p.parseIdentifier()
+		if p.tok.Type != token.WHITESPACE {
+			p.errorf(ErrMissingNewline, p.tok.Line, p.tok.Col, "missing newline after datatype field")
+			return nil
+		}
+		// no newline in whitespace
+		if !(strings.Contains(p.tok.Literal, "\n")) {
+			p.errorf(ErrMissingNewline, p.tok.Line, p.tok.Col, "missing newline at the end of datatype field")
+			p.move()
+			return nil
+		}
+	default:
+		p.errorf(ErrInvalidTokenForDatatypeField, p.tok.Line, p.tok.Col, "invalid token '%s' for datatype field", p.tok.Literal)
+		return nil
+	}
+	p.move()
+	return f
+}
+
+func (p *Parser) parseDatatypeDeclaration() *ast.DatatypeDeclaration {
+	d := &ast.DatatypeDeclaration{Tok: p.tok}
+	p.movews()
+	if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
+		p.errorf(ErrNoValue, peek.Line, peek.Col, "datatype without a name")
+		p.movews()
+		if p.peek().Type == token.OPENING_CURLY {
+			p.move()
+		}
+		if p.peek().Type == token.CLOSING_CURLY {
+			p.move()
+		}
+		p.move()
+		return nil
+	}
+	line, col := p.tok.Line, p.tok.Col
+	name := p.parseIdentifier()
+	if name == nil {
+		p.errorf(ErrNoValue, line, col, "expected a name for the datatype declaration")
+		return nil
+	}
+	d.Name = name
+	if p.tok.Type == token.WHITESPACE {
+		p.move()
+	}
+	if p.tok.Type != token.OPENING_CURLY {
+		p.errorf(ErrNoValue, p.tok.Line, p.tok.Col, "missing opening curly brace in datatype declaration")
+		p.move()
+		return nil
+	}
+	p.move() // skip {
+	for {
+		if p.tok.Type == token.EOF {
+			p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: expected a closing curly brace at the end of datatype declaration")
+			p.move()
+			return nil
+		}
+		if p.tok.Type == token.CLOSING_CURLY {
+			break
+		}
+		if p.tok.Type == token.WHITESPACE {
+			p.move()
+		}
+		field := p.parseDatatypeField()
+		if field == nil {
+			// get out of the block
+			for {
+				if p.tok.Type == token.EOF || p.tok.Type == token.CLOSING_CURLY {
+					break
+				}
+				p.move()
+			}
+			if p.tok.Type == token.CLOSING_CURLY {
+				p.move()
+			}
+			return nil
+		}
+		d.Fields = append(d.Fields, field)
+	}
+	if p.tok.Type == token.WHITESPACE {
+		p.move() // skip the last whitespace (containing \n)
+	}
+	if p.tok.Type != token.CLOSING_CURLY {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected a closing curly brace at the end of datatype declaration")
+		return nil
+	}
+	p.move()
+	return d
 }
