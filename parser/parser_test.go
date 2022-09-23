@@ -109,6 +109,7 @@ func printErrs1(t *testing.T, errs []Err) {
 
 func TestParseVarDecl1(t *testing.T) {
 	input := `
+		int i = 0.
 		int age= 30.
 		string name="Jennifer".
 		bool is_raining=       true.`
@@ -148,51 +149,6 @@ func TestParseReassignment(t *testing.T) {
 		age=35.
 		age =65.
 		weather =  "Sunny".
-	`
-	commonThing(t, input)
-}
-
-func TestParsePrintStmt(t *testing.T) {
-	input := `
-		print a.
-		print        16.
-		print "Hey, how are you?".
-		print true.
-		print false. print "hey this was false".
-	`
-	commonThing(t, input)
-}
-
-func TestOperatorWithOneArg(t *testing.T) {
-	input := `
-		@inc a  .
-	`
-	commonThing(t, input)
-}
-
-func TestOperatorWithTwoArgs(t *testing.T) {
-	input := `
-		@gte a b.
-	`
-	commonThing(t, input)
-}
-
-func TestOperatorWithThreeArgs(t *testing.T) {
-	input := `
-		@strreplace s 1 "h" a Heh
-		block 
-			print "hey".
-		end
-	`
-	commonThing(t, input)
-}
-
-func TestOperatorUnknown(t *testing.T) {
-	input := `
-		@unknown "he" "he" a
-		block 
-			print a.
-		end
 	`
 	commonThing(t, input)
 }
@@ -350,5 +306,24 @@ func TestDatatype16(t *testing.T) {
 }
 	print "something".
 	`
+	commonThing(t, input)
+}
+
+func TestGeneral1(t *testing.T) {
+	input := `
+		datatype X {
+			int y
+			string z
+			bool x
+		}
+		return true.
+		int i = 0.
+		loop true {
+			string y = "y".
+		}
+		block
+			int n = 0.
+		end
+`
 	commonThing(t, input)
 }

@@ -127,10 +127,11 @@ type PrefixExpr struct {
 }
 
 func (p PrefixExpr) String() string {
-	res := p.Operator.Literal
+	res := "(" + p.Operator.Literal
 	for _, v := range p.Args {
 		res += " " + v.String()
 	}
+	res += ")"
 	return res
 }
 func (PrefixExpr) statement() {}
