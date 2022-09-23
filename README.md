@@ -9,6 +9,10 @@ Quoi is an explicitly, and statically typed programming language.
 ##### Some code samples
 
 ```
+
+```
+
+```
 fun factorial(int n) -> int {
     int res = 0.
     loop @gte n 1 {
@@ -26,6 +30,18 @@ There are 3 primitive data types:
 int         ; 64-bit
 bool
 string      ; utf-8 encoded strings
+```
+
+##### Operators
+- Operators in Quoi are prefix operators (like in Lisp).
+- They are enclosed in parenthesis ("like in Lisp" 2).
+```
++ - * /
+and or not
+
+```
+```
+(* (+ 1 2) (/ 6 2))         ; result is 9
 ```
 
 - There are lists.
