@@ -42,6 +42,8 @@ and or not
 ```
 ```
 (* (+ 1 2) (/ 6 2))         ; result is 9
+(and true true)             ; true
+(not (and true false))      ; true 
 ```
 
 - There are lists.
@@ -200,3 +202,27 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
 - No function signatures.
 - Functions are not values. They cannot be assigned to variables.
 - We can reference functions before their declarations.
+
+##### Namespaces
+
+- Namespaces form the standard library.
+- They provide functions to manipulate built-in data types, or print to the console, etc.
+
+Syntax:
+```
+use <namespace>.
+```
+```
+use Stdout.
+use String.
+```
+
+```
+; get the index of the first occurence of character 'e' in string "Hello"
+use Stdout.
+use String.
+
+int idx = String::index("Hello", "e").
+Stdout::print("Index of 'e': ").
+Stdout::println(idx).
+```
