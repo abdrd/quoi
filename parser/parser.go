@@ -178,15 +178,6 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 		p.errorf(ErrLonelyExpr, p.tok.Line, p.tok.Col, "not used variable: value of this variable '%s' is not used", identTok.Literal)
 		p.move()
-	case token.PRINT:
-		if stmt := p.parsePrintStatement(); stmt != nil {
-			return stmt
-		}
-	// parse prefix expression
-	case token.OPERATOR:
-		if stmt := p.parseOperator(); stmt != nil {
-			return stmt
-		}
 	case token.BLOCK:
 		if stmt := p.parseBlockStatement(); stmt != nil {
 			return stmt
@@ -248,8 +239,6 @@ func (p *Parser) parseExpr() ast.Expr {
 		return p.parseBoolLiteral()
 	case token.IDENT:
 		return p.parseIdentifier()
-	case token.OPERATOR:
-		return p.parseOperator()
 	case token.DOT, token.EOF:
 		p.move()
 	}
@@ -258,17 +247,18 @@ func (p *Parser) parseExpr() ast.Expr {
 
 func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 	v := &ast.VariableDeclaration{Tok: p.tok}
-	p.move() // move to ws
+	p.movews() // move to ws
 	if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
 		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token: expected an identifier, but got '%s'", peek.Type)
 		p.move()
 		return nil
 	}
-	v.Ident = &ast.Identifier{Tok: p.tok}
-	p.movews()
-	if eqOk, peek := p.expect(token.EQUAL), p.peek(); !(eqOk) {
-		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token: expected an equal sign, but got '%s'", peek.Type)
+	v.Ident = p.parseIdentifier()
+	if p.tok.Type == token.WHITESPACE {
 		p.move()
+	}
+	if p.tok.Type != token.EQUAL {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected an equal sign, but got '%s'", p.tok.Type)
 		return nil
 	}
 	p.movews()
@@ -340,113 +330,6 @@ func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.Reassignm
 	return r
 }
 
-func (p *Parser) parsePrintStatement() *ast.PrintStatement {
-	s := &ast.PrintStatement{Tok: p.tok}
-	p.move() // move to ws
-	if peek := p.peek(); peek.Type == token.EOF {
-		p.errorf(ErrUnexpectedEOF, peek.Line, peek.Col, "unexpected end-of-file: expected an argument to 'print' statement")
-		p.move()
-		return nil
-	}
-	// parseExpr depends on peek, so, don't move here.
-	line, col := p.tok.Line, p.tok.Col
-	s.Arg = p.parseExpr()
-	if s.Arg == nil {
-		p.errorf(ErrNoValue, line, col, "print statement needs one argument, but none was given.")
-		return nil
-	}
-	if p.tok.Type != token.DOT {
-		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: need a dot at the end of a print statement")
-		return nil
-	}
-	p.move() // skip dot
-	return s
-}
-
-// to not give redundant error messages if we encounter a ErrWrongNumberOfArgs, or ErrUnknownOperator, ...
-func skipOverExprsNotToConfuseTheUser(p *Parser) {
-	p.movews()
-	for {
-		expr := p.parseExpr()
-		if expr == nil {
-			break
-		}
-	}
-}
-
-// also returns parsed expr count
-func skipOverExprsNotToConfuseTheUser2(p *Parser) int {
-	p.movews()
-	i := 0
-	for {
-		expr := p.parseExpr()
-		if expr == nil {
-			break
-		}
-		i++
-	}
-	return i
-}
-
-func parseOperatorWith(p *Parser, nArgs int) *ast.PrefixExpr {
-	operatorLit := p.tok.Literal
-	pe := &ast.PrefixExpr{}
-	pe.Operator = p.tok
-	p.movews()
-	if nArgs == 0 || nArgs > 3 {
-		panic(fmt.Sprintf("parseOperatorWith: invalid nArgs: %d", nArgs))
-	}
-	line, col := p.tok.Line, p.tok.Col
-	for i := 0; i < nArgs; i++ {
-		expr := p.parseExpr()
-		if expr != nil {
-			pe.Args = append(pe.Args, expr)
-		}
-	}
-	if expr := p.parseExpr(); expr != nil {
-		// wrong number of args. (at least +1)
-		argCount := skipOverExprsNotToConfuseTheUser2(p)
-		wrongArgCount := argCount + 1 + len(pe.Args)
-		p.errorf(ErrWrongNumberOfArgs, line, col, "wrong number of arguments (%d) to call '%s'. it needs %d arguments", wrongArgCount, operatorLit, nArgs)
-		return nil
-	}
-	return pe
-}
-
-func (p *Parser) parseOperator() *ast.PrefixExpr {
-	operators := []string{
-		"@add", "@sub", "@div", "@mul", "@inc", "@dec", "@str", "@gt", "@lt", "@gte", "@lte",
-		"@eq", "@not", "@and", "@or", "@neq", "@strget", "@strdelete", "@strreplace", "@strindex", "@strconcat",
-		"@streq", "@listnew", "@listpush", "@listget", "@listreplace", "@listdelete", "@new",
-		"@get", "@set",
-	}
-	var in = func(str string, seq []string) bool {
-		for _, v := range seq {
-			if v == str {
-				return true
-			}
-		}
-		return false
-	}
-	if !(in(p.tok.Literal, operators)) {
-		p.errorf(ErrUnknownOperator, p.tok.Line, p.tok.Col, "unknown operator '%s'", p.tok.Literal)
-		// in order not to confuse the user with unnecessary error messages like ErrLonelyExpr, after appending ErrUnknownOperator
-		// skip over all the arguments.
-		skipOverExprsNotToConfuseTheUser(p)
-		return nil
-	}
-	switch p.tok.Literal {
-	case "@new", "@listnew":
-		panic("implement these specials @new, @listnew, etc.")
-	case "@inc", "@dec", "@str", "@not":
-		return parseOperatorWith(p, 1)
-	case "@strreplace", "@listreplace":
-		return parseOperatorWith(p, 3)
-	default:
-		return parseOperatorWith(p, 2)
-	}
-}
-
 func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	b := &ast.BlockStatement{Tok: p.tok}
 	p.movews()
@@ -495,12 +378,15 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 		return nil
 	}
 	l.Cond = cond
+	if p.tok.Type == token.WHITESPACE {
+		p.move()
+	}
 	if p.tok.Type != token.OPENING_CURLY {
 		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected an opening curly brace, got '%s'", p.tok.Type)
 		p.move()
 		return nil
 	}
-	p.move()
+	p.movews()
 	for {
 		if p.tok.Type == token.EOF {
 			p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed loop statement")

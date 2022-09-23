@@ -7,10 +7,6 @@ Quoi is a simple programming language. This repository is an implementation of t
 Quoi is an explicitly, and statically typed programming language.
 
 ##### Some code samples
-```
-; statements end with a dot (.).
-print "Hello world".
-```
 
 ```
 fun factorial(int n) -> int {
@@ -32,24 +28,10 @@ bool
 string      ; utf-8 encoded strings
 ```
 
-There are lists.
+- There are lists.
 
-```
-list int ux = @listnew int ().      ; can pass initialization values in ()s. parens are required, even if
-                                    ; there are not any values passed initially.
-; append to list
-@listpush ux 1.
+**LISTS HERE**
 
-; get element with index 
-; int first_el = @listget ux 1.
-@listget ux 1.                      ; get second element (indices start from zero).
-
-; replace element with index
-@listreplace ux 1 10.               ; make second element's value 10
-
-; delete element with index
-@listdelete ux 1.
-```
 <a id="datatypes"></a>
 There are user-defined data types (```datatype```).
 
@@ -61,23 +43,10 @@ datatype User {
 }
 
 ; initialization
-
-; we do not have to pass values for every field of User here. they are set to zero values by default.
-; No args: 
-;   User u = @new User ().
 ```
+**INITIALIZATION**
+
 See [Zero values](#zero-values)
-```
-User u = @new User (name: "John", age: 61).
-
-; getters
-
-string name = @get u name.
-
-; setters
-
-@set u name "Johnny". 
-```
 
 ##### Zero values
 
@@ -96,24 +65,14 @@ fun function_name([type arg,...]) -> return type[,return type2,...] {
 
 ; no return values
 fun hello_world() {
-    print "Hello world".
+    
 }
 
 fun greet(string name) {
-    print @strconcat "Hello " name.
+    
 }
 
 fun some_func(int a, b) -> string, bool {
-    int n = @add a b.
-    ; this is a bit unreadable.
-    ; string ret1 = @strconcat @str n @str a.
-    ; let's do this instead:
-
-    string strN = @str n.
-    string strA = @str a.
-    string ret1 = @strconcat strN strA.
-    bool ret2 = true.
-    return ret1, ret2.
 }
 ```
 
@@ -133,12 +92,7 @@ for (int i = 0; i < 10; i++) {
 ```
 Equivalent of this classical loop above: 
 ```
-int i = 0.
-loop @lt i 10 { 
-    ; can't pass more than one argument to print statement
-    print @strconcat "#" @str i.
-    @inc i          ; or i = @add i 1
-}
+
 ```
 
 Branching:
@@ -151,80 +105,7 @@ if <condition> {
 
 }
 ```
-```
-int n = 10.
 
-if @gt n 100 {
-
-} elseif @eq n 11 {
-
-} else {
-
-}
-```
-
-##### Built-in functions (statements/pseudo-functions)
- 
-I call them pseudo-functions, because they are not called like user-defined functions are called (syntactically).
-
-They usually start with the "at" symbol (@). Some of them produce values, while some of them do not.
-
-Here's the list:
-```
-print                   ; take one (1) string to print to standard output.
-printf                  ; take one (1) formatted string, and arguments needed. No newlines at the end.
-                            ; format specifiers: 
-                            ; %s        for strings
-                            ; %d        for integers
-                            ; %b        for bools
-
-; these take in numbers, and return an integer result.
-@add a b                ; add a, and b
-@sub a b                ; subtract a from b 
-@div a b                ; divide a, by b 
-@mul a b                ; multiply a with b
-@inc a                  ; increment a by 1
-@dec a                  ; decrement a by 1
-@str a                  ; convert integer a, to a string
-
-; comparison functions used for integers:
-; these produce boolean values.
-@gt a b                 ; return a > b
-@lt a b                 ; return a < b
-@gte a b                ; return a >= b
-@lte a b                ; return a <= b
-@eq a b                 ; return whether a is equal to b
-@neq a b                ; the opposite of @eq
-
-; logical operators
-@and a b                ; logical and
-@or a b                 ; logical or
-@not a                  ; negate a boolean value
-
-; string functions
-; return strings
-@strget s idx           ; get the character at index idx in s
-@strdelete s idx        ; delete ^^^
-@strreplace s idx c     ; replace ^^^, with c
-@strindex s c           ; return the index of the first occurence of character c, in s
-@strconcat s s2         ; concatenate s, and s2
-@streq s s2
-
-; list functions
-
-@listnew type (args)                    ; very similar to @new. see lists section
-@listpush list value                    ; append to list
-@listget list idx                       ; get element with index idx in list
-@listreplace list idx new_value         ; replace element with index
-@listdelete ux 1                        ; delete element with index
-```
-```
-; datatype functions
-
-@new type (args)
-@get type field
-@set type field value
-```
 See [datatype](#datatypes)   
 
 ##### Keywords
@@ -232,7 +113,7 @@ See [datatype](#datatypes)
 List of all keywords: 
 
 ``` 
-print, printf, datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
+datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
 ```
 
 --- 
@@ -278,11 +159,12 @@ print, printf, datatype, fun, int, string, bool, block, end, if, elseif, else, l
     }
 
     fun introduce_city(City c) -> string {
-        string res = @strconcat @get c name @strconcat " was founded in " @get c founded_in.
+        string res = "City".
         return res.
     }
     ```
-- No modules, packages, or a standard library.
+- No module system; but there are namespaces that you can use. They form the standard library.
+  - When you use a namespace, the code necessary to provide that service is injected in the compiled Go code.
 - No floats.
 - Only one looping construct (```loop``` keyword).
 - No manual memory management. Quoi programs are compiled to Go, and the Go runtime handles all the memory management using a garbage collector.
@@ -293,15 +175,9 @@ print, printf, datatype, fun, int, string, bool, block, end, if, elseif, else, l
     int age = 30.
 
     fun celebrate_birthday(int age) {
-        printf "\t\tHappy birthday\n".
-        print @strconcat 
-                    @strconcat 
-                        "You are now "
-                        @str age 
-                    " years old.".
-        @inc age.
+        ; increment age here (with something like ++ in other languages)
     }
 
     celebrate_birthday(age).    ; ...
-    print age.                  ; 31
+    age                 ; 31
     ```

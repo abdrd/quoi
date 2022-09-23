@@ -102,10 +102,6 @@ func tokRepr(t token.Token) string {
 	return fmt.Sprintf("(%s, %s)\n", t.Type, t.Literal)
 }
 
-func tokReprWithColumns(t token.Token) string {
-	return fmt.Sprintf("Token-%d:%d[%s](%s)\n", t.Line, t.Col, t.Type, t.Literal)
-}
-
 const ignoreWs = true
 
 // ignore whitespace tokens

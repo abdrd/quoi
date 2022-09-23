@@ -114,6 +114,7 @@ func TestLexWs(t *testing.T) {
 	if tok.Type != token.WHITESPACE {
 		t.Errorf("1: %s\n", tok.Type)
 	}
+	fmt.Printf("len(tok.Literal)=%d  len(input)=%d", len(tok.Literal), len(input))
 	if tok.Literal != input {
 		t.Errorf("2: %s\n", tok.Literal)
 		t.Errorf("2.2: %d\n", len(tok.Literal))
@@ -379,7 +380,7 @@ func TestJustInt(t *testing.T) {
 
 func TestLexFunctionDef(t *testing.T) {
 	input := `fun greet(string name) -> string {
-	return @strconcat "Hello" name.
+	return "Hello".
 }`
 	l := New(input)
 	want := []struct {
@@ -403,11 +404,7 @@ func TestLexFunctionDef(t *testing.T) {
 		{token.WHITESPACE, "\n\t"},
 		{token.RETURN, "return"},
 		{token.WHITESPACE, " "},
-		{token.OPERATOR, "@strconcat"},
-		{token.WHITESPACE, " "},
 		{token.STRING, "Hello"},
-		{token.WHITESPACE, " "},
-		{token.IDENT, "name"},
 		{token.DOT, "."},
 		{token.WHITESPACE, "\n"},
 		{token.CLOSING_CURLY, "}"},
@@ -444,7 +441,7 @@ func TestLexDatatype(t *testing.T) {
 	int age
 	string city
 }
-User mehmet = @new User (name: "Mehmet", age: 33, city: "Istanbul").`
+`
 
 	l := New(input)
 	want := []struct {
@@ -471,35 +468,6 @@ User mehmet = @new User (name: "Mehmet", age: 33, city: "Istanbul").`
 		{token.WHITESPACE, "\n"},
 		{token.CLOSING_CURLY, "}"},
 		{token.WHITESPACE, "\n"},
-		{token.IDENT, "User"},
-		{token.WHITESPACE, " "},
-		{token.IDENT, "mehmet"},
-		{token.WHITESPACE, " "},
-		{token.EQUAL, "="},
-		{token.WHITESPACE, " "},
-		{token.OPERATOR, "@new"},
-		{token.WHITESPACE, " "},
-		{token.IDENT, "User"},
-		{token.WHITESPACE, " "},
-		{token.OPENING_PAREN, "("},
-		{token.IDENT, "name"},
-		{token.COLON, ":"},
-		{token.WHITESPACE, " "},
-		{token.STRING, "Mehmet"},
-		{token.COMMA, ","},
-		{token.WHITESPACE, " "},
-		{token.IDENT, "age"},
-		{token.COLON, ":"},
-		{token.WHITESPACE, " "},
-		{token.INT, "33"},
-		{token.COMMA, ","},
-		{token.WHITESPACE, " "},
-		{token.IDENT, "city"},
-		{token.COLON, ":"},
-		{token.WHITESPACE, " "},
-		{token.STRING, "Istanbul"},
-		{token.CLOSING_PAREN, ")"},
-		{token.DOT, "."},
 	}
 	got := []token.Token{}
 	for {

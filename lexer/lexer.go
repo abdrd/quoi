@@ -55,12 +55,11 @@ type Lexer struct {
 
 func New(input string) *Lexer {
 	var lexFns = map[state]lexFn{
-		stateLexWs:       lexWs,
-		stateLexInt:      lexInt,
-		stateLexString:   lexString,
-		stateLexIdentKw:  lexIdentOrKw,
-		stateLexSymbol:   lexSymbol,
-		stateLexOperator: lexOperator,
+		stateLexWs:      lexWs,
+		stateLexInt:     lexInt,
+		stateLexString:  lexString,
+		stateLexIdentKw: lexIdentOrKw,
+		stateLexSymbol:  lexSymbol,
 	}
 	if len(input) == 0 {
 		panic("lexer.New: empty input string")
@@ -133,7 +132,6 @@ type char byte
 const (
 	doubleQuote char = '"'
 	semicolon   char = ';'
-	at          char = '@'
 	newline     char = '\n'
 )
 
@@ -144,18 +142,23 @@ func is(char char, ch rune) bool {
 func lexWs(l *Lexer) token.Token {
 	start := l.pointer
 	line := l.line
+	var lastChar rune
 	for isWhitespace(l.ch) {
+		if l.hasReachedEOF {
+			// next advance will set l.ch to eof.
+			lastChar = l.ch
+		}
 		l.advance()
 	}
 	end := l.pointer
 	if l.hasReachedEOF {
 		// if the last character is not a whitespace, don't pick it up
-		if isWhitespace(l.ch) {
+		if isWhitespace(lastChar) {
 			end++
 		}
 	}
 	lit := string(l.src[start:end])
-	// set state to stateStart, to determine the next lexFn in *Lexer.Next.
+	// set state to stateStart, to determine the next lexFn in *(Lexer).Next.
 	l.state = stateStart
 	return token.New(token.WHITESPACE, lit, line, start)
 }
@@ -243,7 +246,7 @@ func ignoreComment(l *Lexer) {
 
 func lexIdentOrKw(l *Lexer) token.Token {
 	var kw = map[string]token.Type{
-		"print": token.PRINT, "printf": token.PRINTF, "datatype": token.DATATYPE, "fun": token.FUN,
+		"datatype": token.DATATYPE, "fun": token.FUN,
 		"int": token.INTKW, "string": token.STRINGKW, "bool": token.BOOLKW, "block": token.BLOCK,
 		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
 		"loop": token.LOOP, "return": token.RETURN,
@@ -315,35 +318,6 @@ func lexSymbol(l *Lexer) token.Token {
 	return token.New(tok, lit, l.line, l.col)
 }
 
-func lexOperator(l *Lexer) token.Token {
-	start := l.pointer
-	l.advance()
-	if l.hasReachedEOF {
-		l.errorf(ErrNoOperatorNameAfterAt, int(start), int(l.line), "unexpected end-of-file: no operator name after '@'")
-		return token.New(token.ILLEGAL, "@", l.line, start)
-	}
-	for canBeAnIdentifierName(l.ch) {
-		l.advance()
-	}
-	end := l.pointer
-	if l.hasReachedEOF {
-		// to include the last character in slicing.
-		// since we are at the last character, we have to
-		// get the slice *up to*, but not including, len(l.src).
-		end++
-	}
-	lit := string(l.src[start:end])
-	line := l.line
-	if l.ch == '\n' {
-		// if the last character is a newline, then decrement the local line
-		// variable by 1, because we do not want unmeaningful position information like
-		// col 34, line LAST_LINE+1.
-		line--
-	}
-	l.state = stateStart
-	return token.New(token.OPERATOR, lit, line, start)
-}
-
 // Entry point
 
 func (l *Lexer) Next() token.Token {
@@ -364,8 +338,6 @@ func (l *Lexer) Next() token.Token {
 			l.state = stateLexIdentKw
 		} else if isSymbol(l.ch) {
 			l.state = stateLexSymbol
-		} else if is(at, l.ch) {
-			l.state = stateLexOperator
 		}
 	}
 	fn := l.lexFns[l.state]
