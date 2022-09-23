@@ -181,3 +181,6 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
     celebrate_birthday(age).    ; ...
     age                 ; 31
     ```
+- No function signatures.
+- Functions are not values. They cannot be assigned to variables.
+- We can reference functions before their declarations.
