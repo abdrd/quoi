@@ -9,13 +9,12 @@ Quoi is an explicitly, and statically typed programming language.
 ##### Some code samples
 
 ```
+
+```
+
+```
 fun factorial(int n) -> int {
-    int res = 0.
-    loop @gte n 1 {
-        res = @mul res n.
-        n = @sub n 1.
-    }
-    return res
+    ; factorial here
 }
 ```
 
@@ -26,6 +25,20 @@ There are 3 primitive data types:
 int         ; 64-bit
 bool
 string      ; utf-8 encoded strings
+```
+
+##### Operators
+- Operators in Quoi are prefix operators (like in Lisp).
+- They are enclosed in parenthesis ("like in Lisp" 2).
+```
++ - * /
+and or not
+
+```
+```
+(* (+ 1 2) (/ 6 2))         ; result is 9
+(and true true)             ; true
+(not (and true false))      ; true 
 ```
 
 - There are lists.
@@ -184,3 +197,27 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
 - No function signatures.
 - Functions are not values. They cannot be assigned to variables.
 - We can reference functions before their declarations.
+
+##### Namespaces
+
+- Namespaces form the standard library.
+- They provide functions to manipulate built-in data types, or print to the console, etc.
+
+Syntax:
+```
+use <namespace>.
+```
+```
+use Stdout.
+use String.
+```
+
+```
+; get the index of the first occurence of character 'e' in string "Hello"
+use Stdout.
+use String.
+
+int idx = String::index("Hello", "e").
+Stdout::print("Index of 'e': ").
+Stdout::println(idx).
+```
