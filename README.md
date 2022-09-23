@@ -14,12 +14,7 @@ Quoi is an explicitly, and statically typed programming language.
 
 ```
 fun factorial(int n) -> int {
-    int res = 0.
-    loop @gte n 1 {
-        res = @mul res n.
-        n = @sub n 1.
-    }
-    return res
+    ; factorial here
 }
 ```
 
