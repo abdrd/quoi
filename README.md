@@ -204,18 +204,11 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
 - They provide functions to manipulate built-in data types, or print to the console, etc.
 
 Syntax:
-```
-use <namespace>.
-```
-```
-use Stdout.
-use String.
-```
 
 ```
+<namespace>::<function>().
+```
 ; get the index of the first occurence of character 'e' in string "Hello"
-use Stdout.
-use String.
 
 int idx = String::index("Hello", "e").
 Stdout::print("Index of 'e': ").
