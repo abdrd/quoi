@@ -488,3 +488,51 @@ func TestLexDatatype(t *testing.T) {
 		i++
 	}
 }
+
+func TestNewTokens1(t *testing.T) {
+	input := "Stdout::print().(and)(or)(not)-+*/-"
+	l := New(input)
+	want := []struct {
+		typ token.Type
+		lit string
+	}{
+		{token.IDENT, "Stdout"},
+		{token.DOUBLE_COLON, "::"},
+		{token.IDENT, "print"},
+		{token.OPENING_PAREN, "("},
+		{token.CLOSING_PAREN, ")"},
+		{token.DOT, "."},
+		{token.OPENING_PAREN, "("},
+		{token.AND, "and"},
+		{token.CLOSING_PAREN, ")"},
+		{token.OPENING_PAREN, "("},
+		{token.OR, "or"},
+		{token.CLOSING_PAREN, ")"},
+		{token.OPENING_PAREN, "("},
+		{token.NOT, "not"},
+		{token.CLOSING_PAREN, ")"},
+		{token.MINUS, "-"},
+		{token.ADD, "+"},
+		{token.MUL, "*"},
+		{token.DIV, "/"},
+		{token.MINUS, "-"},
+	}
+	got := []token.Token{}
+	for {
+		tok := l.Next()
+		got = append(got, tok)
+		if tok.Type == token.EOF {
+			break
+		}
+	}
+	i := 0
+	for {
+		if i == len(want) || i == len(got) {
+			fmt.Println("end: ", len(want), len(got))
+			break
+		}
+		fmt.Printf("#%d: ", i)
+		check1(t, got[i], want[i].lit, want[i].typ)
+		i++
+	}
+}
