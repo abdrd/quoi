@@ -123,7 +123,7 @@ func isWhitespace(ch rune) bool {
 
 func isSymbol(ch rune) bool {
 	str := string(ch)
-	symbols := ".={}()-:,"
+	symbols := ":.={}()-,+/*"
 	return strings.Contains(symbols, str)
 }
 
@@ -249,7 +249,7 @@ func lexIdentOrKw(l *Lexer) token.Token {
 		"datatype": token.DATATYPE, "fun": token.FUN,
 		"int": token.INTKW, "string": token.STRINGKW, "bool": token.BOOLKW, "block": token.BLOCK,
 		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
-		"loop": token.LOOP, "return": token.RETURN,
+		"loop": token.LOOP, "return": token.RETURN, "and": token.AND, "or": token.OR, "not": token.NOT,
 	}
 	start := l.pointer
 	for canBeAnIdentifierName(l.ch) || isDigit(l.ch) {
@@ -288,23 +288,38 @@ func lexSymbol(l *Lexer) token.Token {
 		'}': token.CLOSING_CURLY,
 		'(': token.OPENING_PAREN,
 		')': token.CLOSING_PAREN,
-		':': token.COLON,
 		',': token.COMMA,
+		'+': token.ADD,
+		'-': token.MINUS, // this is redundant
+		'*': token.MUL,
+		'/': token.DIV,
 	}
 	start := l.col
 	if l.ch == '-' {
 		oldLit := string(l.ch)
+		line, col := l.line, l.col
 		l.advance()
-		if l.ch == eof {
-			l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'. did you mean '%s'?", string(l.ch), "->")
-			l.state = stateStart
-			l.advance() // just in case
-			return token.New(token.ILLEGAL, oldLit, l.line, start)
-		}
-		if l.ch == '>' {
+		if l.peek() == '>' {
 			l.advance()
 			l.state = stateStart
 			return token.New(token.ARROW, "->", l.line, start)
+		}
+		return token.New(token.MINUS, oldLit, line, col)
+	}
+	if l.ch == ':' {
+		lit := string(l.ch)
+		l.advance()
+		if l.ch == eof {
+			l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'", lit)
+			l.state = stateStart
+			l.advance()
+			return token.New(token.ILLEGAL, lit, l.line, start)
+		}
+		if l.ch == ':' {
+			lit += string(l.ch)
+			l.advance()
+			l.state = stateStart
+			return token.New(token.DOUBLE_COLON, lit, l.line, l.col)
 		}
 	}
 	tok, found := symbols[byte(l.ch)]
@@ -328,6 +343,11 @@ func (l *Lexer) Next() token.Token {
 		if isWhitespace(l.ch) {
 			l.state = stateLexWs
 		} else if isDigit(l.ch) || l.ch == '-' {
+			if !(isDigit(l.peek())) {
+				// this must be a symbol
+				l.state = stateLexSymbol
+				return l.Next()
+			}
 			l.state = stateLexInt
 		} else if is(doubleQuote, l.ch) {
 			l.state = stateLexString
