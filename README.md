@@ -208,8 +208,9 @@ Syntax:
 ```
 <namespace>::<function>().
 ```
-; get the index of the first occurence of character 'e' in string "Hello"
 
+```
+; get the index of the first occurence of character 'e' in string "Hello"
 int idx = String::index("Hello", "e").
 Stdout::print("Index of 'e': ").
 Stdout::println(idx).
