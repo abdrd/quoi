@@ -190,3 +190,18 @@ func (d DatatypeDeclaration) String() string {
 	return res
 }
 func (DatatypeDeclaration) statement() {}
+
+type PrefixExpr struct {
+	Tok  token.Token
+	Args []Expr
+}
+
+func (p PrefixExpr) String() string {
+	res := "(" + p.Tok.Literal
+	for _, v := range p.Args {
+		res += " " + v.String()
+	}
+	res = res + ")"
+	return res
+}
+func (PrefixExpr) statement() {}

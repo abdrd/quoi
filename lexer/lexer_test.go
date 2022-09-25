@@ -536,3 +536,16 @@ func TestNewTokens1(t *testing.T) {
 		i++
 	}
 }
+
+func TestLexSimplePrefExpr(t *testing.T) {
+	input := `(+ 2 2)`
+	l := New(input)
+	for {
+		tok := l.Next()
+		if tok.Type == token.EOF {
+			break
+		}
+		printTok(t, tok)
+	}
+	printErrs(t, l.Errs)
+}

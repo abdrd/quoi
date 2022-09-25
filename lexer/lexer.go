@@ -133,6 +133,7 @@ const (
 	doubleQuote char = '"'
 	semicolon   char = ';'
 	newline     char = '\n'
+	at          char = '@'
 )
 
 func is(char char, ch rune) bool {
@@ -250,6 +251,7 @@ func lexIdentOrKw(l *Lexer) token.Token {
 		"int": token.INTKW, "string": token.STRINGKW, "bool": token.BOOLKW, "block": token.BLOCK,
 		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
 		"loop": token.LOOP, "return": token.RETURN, "and": token.AND, "or": token.OR, "not": token.NOT,
+		"lt": token.LT, "lte": token.LTE, "gt": token.GT, "gte": token.GTE,
 	}
 	start := l.pointer
 	for canBeAnIdentifierName(l.ch) || isDigit(l.ch) {
@@ -343,7 +345,7 @@ func (l *Lexer) Next() token.Token {
 		if isWhitespace(l.ch) {
 			l.state = stateLexWs
 		} else if isDigit(l.ch) || l.ch == '-' {
-			if !(isDigit(l.peek())) {
+			if l.ch == '-' && !(isDigit(l.peek())) {
 				// this must be a symbol
 				l.state = stateLexSymbol
 				return l.Next()
