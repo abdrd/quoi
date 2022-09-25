@@ -25,11 +25,13 @@ const (
 	ErrNoValue             // when we parse a variable's value but it turns out to be nil (no value)
 	ErrUnfinishedStatement // forgot dot
 	ErrUnexpectedEOF
-	ErrWrongNumberOfArgs
 	ErrUnknownOperator
 	ErrLonelyExpr // expressions that are not tied to any variable
 	ErrMissingNewline
 	ErrInvalidTokenForDatatypeField
+	ErrUnclosedPrefixExpr // forgot )
+	ErrInvalidExpr        // when passing a non-expression to a prefix expr as an argument (e.g. (+ 2 fun), or (* 5 ]))
+	ErrUnwantedArgument
 )
 
 type Parser struct {
@@ -86,6 +88,13 @@ func (p *Parser) movews() {
 	}
 }
 
+// if current token is WHITESPACE, then move; else, don't do anything
+func (p *Parser) movecws() {
+	if p.tok.Type == token.WHITESPACE {
+		p.move()
+	}
+}
+
 func (p *Parser) peek() token.Token {
 	hasNextToken := len(p.tokens)-2 >= int(p.ptr)
 	if hasNextToken {
@@ -107,7 +116,7 @@ func (p *Parser) expect(t token.Type) bool {
 func (p *Parser) Parse() *ast.Program {
 	if len(p.lexerErrors) > 0 {
 		for _, e := range p.lexerErrors {
-			fmt.Printf("[!] error %d: col:line(%d:%d) %s\n", e.ErrCode, e.Line, e.Column, e.Msg)
+			fmt.Printf("[!] error code:%d: line:col(%d:%d) %s\n", e.ErrCode, e.Line, e.Column, e.Msg)
 		}
 		os.Exit(1)
 	}
@@ -194,6 +203,35 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parseDatatypeDeclaration(); stmt != nil {
 			return stmt
 		}
+	case token.OPENING_PAREN:
+		p.movews()
+		p.move()
+		switch p.tok.Type {
+		case token.ADD, token.MINUS, token.DIV, token.MUL, token.AND, token.OR:
+			if stmt := p.parseTwoArgsPrefixExpr(); stmt != nil {
+				return stmt
+			}
+		case token.NOT:
+			if stmt := p.parseNotExpr(); stmt != nil {
+				return stmt
+			}
+		default:
+			p.movews()
+			p.move()
+			if p.tok.Type != token.CLOSING_PAREN {
+				p.errorf(ErrUnknownOperator, p.tok.Line, p.tok.Col, "unknown operator '%s'", p.tok.Literal)
+				for {
+					if p.tok.Type == token.EOF {
+						break
+					}
+					if p.tok.Type == token.CLOSING_PAREN {
+						p.move()
+						return nil
+					}
+					p.move()
+				}
+			}
+		}
 	default:
 		panic("parseStatement: error: NOT IMPLEMENTED: " + p.tok.Type.String())
 	}
@@ -239,6 +277,8 @@ func (p *Parser) parseExpr() ast.Expr {
 		return p.parseBoolLiteral()
 	case token.IDENT:
 		return p.parseIdentifier()
+	case token.OPENING_PAREN:
+		return p.parseStatement()
 	case token.DOT, token.EOF:
 		p.move()
 	}
@@ -505,4 +545,67 @@ func (p *Parser) parseDatatypeDeclaration() *ast.DatatypeDeclaration {
 	}
 	p.move()
 	return d
+}
+
+// go until ), or EOF.
+// skip ')' if found.
+func getOutOfPrefixExpr(p *Parser) {
+	for {
+		if p.tok.Type == token.EOF {
+			break
+		}
+		if p.tok.Type == token.CLOSING_PAREN {
+			p.move()
+			break
+		}
+		p.move()
+	}
+}
+
+// TODO better error messages for these two methods
+
+func (p *Parser) parseTwoArgsPrefixExpr() *ast.PrefixExpr {
+	pe := &ast.PrefixExpr{Tok: p.tok}
+	p.movews()
+	for i := 0; i < 2; i++ {
+		argLit := p.peek().Literal
+		if arg := p.parseExpr(); arg != nil {
+			pe.Args = append(pe.Args, arg)
+		} else {
+			p.errorf(ErrInvalidExpr, p.tok.Line, p.tok.Col, "invalid expression passed to '%s': '%s'", token.PrefixExprName(pe.Tok.Type), argLit)
+			getOutOfPrefixExpr(p)
+			return nil
+		}
+	}
+	line, col := p.tok.Line, p.tok.Col
+	p.movecws()
+	if p.tok.Type != token.CLOSING_PAREN {
+		p.errorf(ErrUnclosedPrefixExpr, line, col, "unclosed '%s' expression", token.PrefixExprName(pe.Tok.Type))
+		getOutOfPrefixExpr(p)
+		return nil
+	}
+	p.move() // skip )
+	return pe
+}
+
+func (p *Parser) parseNotExpr() *ast.PrefixExpr {
+	pe := &ast.PrefixExpr{Tok: p.tok}
+	p.movews()
+	argLit := p.peek().Literal
+	if arg := p.parseExpr(); arg != nil {
+		pe.Args = append(pe.Args, arg)
+	} else {
+		p.errorf(ErrInvalidExpr, p.tok.Line, p.tok.Col, "invalid expression passed to '%s': '%s'", token.PrefixExprName(pe.Tok.Type), argLit)
+		getOutOfPrefixExpr(p)
+		return nil
+	}
+	line, col := p.tok.Line, p.tok.Col
+	p.movecws()
+	if p.tok.Type != token.CLOSING_PAREN {
+		p.errorf(ErrUnclosedPrefixExpr, line, col, "unclosed '%s' expression", token.PrefixExprName(pe.Tok.Type))
+		getOutOfPrefixExpr(p)
+		return nil
+	}
+	p.move() // skip )
+	return pe
 }

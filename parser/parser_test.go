@@ -327,3 +327,98 @@ func TestGeneral1(t *testing.T) {
 `
 	commonThing(t, input)
 }
+
+func TestPrefixExpr1(t *testing.T) {
+	input := `(+ 2 2)`
+	commonThing(t, input)
+}
+
+func TestPrefixExpr2(t *testing.T) {
+	input := `(+)`
+	commonThing(t, input)
+}
+
+func TestPrefixExpr3(t *testing.T) {
+	input := `(+ 2 )`
+	commonThing(t, input)
+}
+
+func TestPrefixExpr4(t *testing.T) {
+	input := `(+ 2 `
+	commonThing(t, input)
+}
+
+func TestPrefixExpr5(t *testing.T) {
+	input := `(+ 2 2`
+	commonThing(t, input)
+}
+
+func TestPrefixExpr6(t *testing.T) {
+	input := `
+		(* 3 (/ 6 2))
+	`
+	commonThing(t, input)
+}
+
+func TestPrefixExpr7(t *testing.T) {
+	input := `
+		(not
+			(and true true)
+			   2
+		)
+	`
+	commonThing(t, input)
+}
+
+func TestPrefixExpr8(t *testing.T) {
+	input := `(not 2 2)`
+	commonThing(t, input)
+}
+
+func TestParseNot1(t *testing.T) {
+	input := `(not a)`
+	commonThing(t, input)
+}
+
+func TestParseNot2(t *testing.T) {
+	input := `(not a`
+	commonThing(t, input)
+}
+
+func TestParseNot3(t *testing.T) {
+	input := `(not a b c)`
+	commonThing(t, input)
+}
+
+func TestParseNot4(t *testing.T) {
+	input := `(not fun)`
+	commonThing(t, input)
+}
+
+func TestParseNot5(t *testing.T) {
+	input := `(
+		not true
+		)`
+	commonThing(t, input)
+}
+
+func TestParsePref1(t *testing.T) {
+	input := `
+		(+ 2 2)
+	`
+	commonThing(t, input)
+}
+
+func TestParsePref2(t *testing.T) {
+	input := `
+		(/ 2 2
+	`
+	commonThing(t, input)
+}
+
+func TestParsePref3(t *testing.T) {
+	input := `
+		(/) 6
+	`
+	commonThing(t, input)
+}

@@ -76,3 +76,24 @@ func New(typ Type, lit string, line, col uint) Token {
 		Col:     col,
 	}
 }
+
+// return human friendly name for an arithmetic operator. very limited use case. used for error reporting.
+func PrefixExprName(t Type) string {
+	switch t {
+	case ADD:
+		return "+"
+	case MINUS:
+		return "-"
+	case DIV:
+		return "/"
+	case MUL:
+		return "*"
+	case AND:
+		return "and"
+	case OR:
+		return "or"
+	case NOT:
+		return "not"
+	}
+	return "UNKNOWN"
+}

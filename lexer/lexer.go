@@ -343,7 +343,7 @@ func (l *Lexer) Next() token.Token {
 		if isWhitespace(l.ch) {
 			l.state = stateLexWs
 		} else if isDigit(l.ch) || l.ch == '-' {
-			if !(isDigit(l.peek())) {
+			if l.ch == '-' && !(isDigit(l.peek())) {
 				// this must be a symbol
 				l.state = stateLexSymbol
 				return l.Next()
