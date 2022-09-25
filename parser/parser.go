@@ -207,7 +207,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		p.movews()
 		p.move()
 		switch p.tok.Type {
-		case token.ADD, token.MINUS, token.DIV, token.MUL, token.AND, token.OR:
+		case token.ADD, token.MINUS, token.DIV, token.MUL, token.AND, token.OR,
+			token.LT, token.GT, token.LTE, token.GTE:
 			if stmt := p.parseTwoArgsPrefixExpr(); stmt != nil {
 				return stmt
 			}
@@ -216,10 +217,11 @@ func (p *Parser) parseStatement() ast.Statement {
 				return stmt
 			}
 		default:
+			op := p.tok.Literal
 			p.movews()
 			p.move()
 			if p.tok.Type != token.CLOSING_PAREN {
-				p.errorf(ErrUnknownOperator, p.tok.Line, p.tok.Col, "unknown operator '%s'", p.tok.Literal)
+				p.errorf(ErrUnknownOperator, p.tok.Line, p.tok.Col, "unknown operator '%s'", op)
 				for {
 					if p.tok.Type == token.EOF {
 						break

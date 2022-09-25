@@ -42,6 +42,10 @@ const (
 	AND
 	OR
 	NOT
+	LT
+	LTE
+	GT
+	GTE
 )
 
 func (t Type) String() string {
@@ -56,7 +60,8 @@ func (t Type) String() string {
 		DOT: "DOT", OPENING_CURLY: "OPENING_CURLY", CLOSING_CURLY: "CLOSING_CURLY", ARROW: "ARROW",
 		INTKW: "INT_KEYWORD", STRINGKW: "STRING_KEYWORD", BOOLKW: "BOOL_KEYWORD",
 		COMMA: ",", EQUAL: "EQUAL", DOUBLE_COLON: "DOUBLE_COLON", ADD: "ADD", MUL: "MUL",
-		MINUS: "MINUS", DIV: "DIV", AND: "AND", OR: "OR", NOT: "NOT",
+		MINUS: "MINUS", DIV: "DIV", AND: "AND", OR: "OR", NOT: "NOT", LT: "LESS_THAN", GT: "GREATER_THAN",
+		LTE: "LESS_THAN_OR_EQUAL_TO", GTE: "GREATER_THAN_OR_EQUAL_TO",
 	}
 	return tt[t]
 }
@@ -94,6 +99,14 @@ func PrefixExprName(t Type) string {
 		return "or"
 	case NOT:
 		return "not"
+	case LT:
+		return "lt"
+	case GT:
+		return "gt"
+	case LTE:
+		return "lte"
+	case GTE:
+		return "gte"
 	}
 	return "UNKNOWN"
 }

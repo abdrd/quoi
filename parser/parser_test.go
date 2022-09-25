@@ -422,3 +422,23 @@ func TestParsePref3(t *testing.T) {
 	`
 	commonThing(t, input)
 }
+
+func TestParsePref4(t *testing.T) {
+	input := `
+		(^ f b) 5
+	`
+	commonThing(t, input)
+}
+func TestParsePref5(t *testing.T) {
+	input := `
+		(lte 5 5)
+	`
+	commonThing(t, input)
+}
+
+func TestParsePref6(t *testing.T) {
+	input := `
+		(gte 5 5 6)
+	`
+	commonThing(t, input)
+}

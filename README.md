@@ -31,14 +31,15 @@ string      ; utf-8 encoded strings
 - Operators in Quoi are prefix operators (like in Lisp).
 - They are enclosed in parenthesis ("like in Lisp" 2).
 ```
-+ - * /
++ - * / @lt @lte @gt @gte
 and or not
-
 ```
 ```
 (* (+ 1 2) (/ 6 2))         ; result is 9
 (and true true)             ; true
 (not (and true false))      ; true 
+(@lt 5 4)                   ; false
+(not (@gte 5 5))            ; false
 ```
 
 - There are lists.
@@ -126,7 +127,7 @@ See [datatype](#datatypes)
 List of all keywords: 
 
 ``` 
-datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return
+datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return, and, or, not, lt, lte, gt, gte
 ```
 
 --- 
