@@ -350,22 +350,16 @@ func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.Reassignm
 		return nil
 	}
 	p.movews()
+	line, col := p.peek().Line, p.peek().Col
 	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
-		p.errorf(ErrUnexpectedToken, p.peek().Line, p.peek().Col, "unexpected token '%s' as new value in reassignment statement", p.peek().Literal)
+		p.errorf(ErrUnexpectedToken, line, col, "unexpected token '%s' as new value in reassignment statement", p.peek().Literal)
 		p.skip(token.DOT)
 		return nil
 	}
-	line, col := p.peek().Line, p.peek().Col
 	r.NewValue = p.parseExpr()
 	if r.NewValue == nil {
 		p.errorf(ErrNoValue, line, col, "no value in reassignment")
-		for {
-			if p.tok.Type == token.DOT || p.tok.Type == token.EOF {
-				p.move()
-				break
-			}
-			p.move()
-		}
+		p.skip(token.DOT)
 		return nil
 	}
 	if p.tok.Type != token.DOT {
@@ -424,17 +418,23 @@ noval:
 func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	l := &ast.LoopStatement{Tok: p.tok}
 	p.movews()
-	line, col := p.tok.Line, p.tok.Col
-	cond := p.parseExpr()
-	if cond == nil {
+	line, col := p.peek().Line, p.peek().Col
+	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+		if p.peek().Type == token.OPENING_CURLY {
+			goto nocond
+		}
+		p.errorf(ErrUnexpectedToken, line, col, "unexpected token '%s' in loop statement. loop statement condition must be an expression", p.peek().Literal)
+		p.skip(token.CLOSING_CURLY)
+		return nil
+	}
+nocond:
+	l.Cond = p.parseExpr()
+	if l.Cond == nil {
 		p.errorf(ErrNoValue, line, col, "missing condition in loop statement")
 		p.skip(token.CLOSING_CURLY)
 		return nil
 	}
-	l.Cond = cond
-	if p.tok.Type == token.WHITESPACE {
-		p.move()
-	}
+	p.movecws()
 	if p.tok.Type != token.OPENING_CURLY {
 		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected an opening curly brace, got '%s'", p.tok.Type)
 		p.move()
