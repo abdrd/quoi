@@ -350,22 +350,16 @@ func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.Reassignm
 		return nil
 	}
 	p.movews()
+	line, col := p.peek().Line, p.peek().Col
 	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
-		p.errorf(ErrUnexpectedToken, p.peek().Line, p.peek().Col, "unexpected token '%s' as new value in reassignment statement", p.peek().Literal)
+		p.errorf(ErrUnexpectedToken, line, col, "unexpected token '%s' as new value in reassignment statement", p.peek().Literal)
 		p.skip(token.DOT)
 		return nil
 	}
-	line, col := p.peek().Line, p.peek().Col
 	r.NewValue = p.parseExpr()
 	if r.NewValue == nil {
 		p.errorf(ErrNoValue, line, col, "no value in reassignment")
-		for {
-			if p.tok.Type == token.DOT || p.tok.Type == token.EOF {
-				p.move()
-				break
-			}
-			p.move()
-		}
+		p.skip(token.DOT)
 		return nil
 	}
 	if p.tok.Type != token.DOT {
