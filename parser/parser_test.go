@@ -116,7 +116,7 @@ func TestParseVarDecl1(t *testing.T) {
 	l := lexer.New(input)
 	p := New(l)
 	parsed := p.Parse()
-	if len(parsed.Stmts) != 3 {
+	if len(parsed.Stmts) != 4 {
 		t.Errorf("1: %d\n", len(parsed.Stmts))
 	}
 	printErrs(t, p.lexerErrors)
@@ -133,7 +133,7 @@ func commonThing(t *testing.T, input string) {
 	printStmts(t, parsed.Stmts)
 }
 
-func TestParseVarDeclErr(t *testing.T) {
+func TestParseVarDecl2(t *testing.T) {
 	input := `
 		int age = "Hey".
 		int city = true.
@@ -143,12 +143,29 @@ func TestParseVarDeclErr(t *testing.T) {
 	commonThing(t, input)
 }
 
-func TestParseReassignment(t *testing.T) {
+func TestParseVarDecl3(t *testing.T) {
+	input := `
+		int age = int.
+		int city = datatype.
+		string name = {}.
+		bool is_raining = ...
+	`
+	commonThing(t, input)
+}
+
+func TestParseReassignment1(t *testing.T) {
 	input := `
 		name = "Abidin".
 		age=35.
 		age =65.
 		weather =  "Sunny".
+	`
+	commonThing(t, input)
+}
+
+func TestParseReassignment2(t *testing.T) {
+	input := `
+		name = 
 	`
 	commonThing(t, input)
 }
@@ -196,6 +213,11 @@ func TestReturn3(t *testing.T) {
 	commonThing(t, input)
 }
 
+func TestReturn4(t *testing.T) {
+	input := `return datatype.`
+	commonThing(t, input)
+}
+
 func TestLoop1(t *testing.T) {
 	input := `
 		loop  {}
@@ -205,14 +227,23 @@ func TestLoop1(t *testing.T) {
 
 func TestLoop2(t *testing.T) {
 	input := `
-		loop @lte 5 5 {
+		loop (lte 5 5) {
 	`
 	commonThing(t, input)
 }
 
 func TestLoop3(t *testing.T) {
 	input := `
-		loop @lte 5 5 {
+		loop (lte 5 5) {
+			print "Heeey".
+		}
+	`
+	commonThing(t, input)
+}
+
+func TestLoop4(t *testing.T) {
+	input := `
+		loop datatype {
 			print "Heeey".
 		}
 	`
@@ -339,7 +370,7 @@ func TestPrefixExpr2(t *testing.T) {
 }
 
 func TestPrefixExpr3(t *testing.T) {
-	input := `(+ 2 )`
+	input := `(+ 2 datatype)`
 	commonThing(t, input)
 }
 
@@ -439,6 +470,25 @@ func TestParsePref5(t *testing.T) {
 func TestParsePref6(t *testing.T) {
 	input := `
 		(gte 5 5 6)
+	`
+	commonThing(t, input)
+}
+
+func TestParsePref7(t *testing.T) {
+	input := `
+		(gte datatype)
+	`
+	commonThing(t, input)
+}
+
+func TestParserDotDot(t *testing.T) {
+	input := `... block end`
+	commonThing(t, input)
+}
+
+func TestParserErroneous1(t *testing.T) {
+	input := `
+		garbage and here it is
 	`
 	commonThing(t, input)
 }

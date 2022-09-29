@@ -67,6 +67,7 @@ type Identifier struct {
 func (i Identifier) String() string {
 	return i.Tok.Literal
 }
+func (i Identifier) statement() {}
 
 type VariableDeclaration struct {
 	Tok   token.Token // variable type
