@@ -27,7 +27,6 @@ const (
 	ErrUnexpectedEOF
 	ErrMissingNewline
 	ErrInvalidTokenForDatatypeField
-	ErrUnclosedPrefixExpr // forgot )
 )
 
 type Parser struct {
@@ -118,6 +117,20 @@ func (p *Parser) expect(t token.Type) bool {
 	return true
 }
 
+// go until 'toTheEndOf', and move once more; and return.
+//
+// useful in situations like coming across an erroneous expression, or statement;
+// and wanting to ignore the whole statement to prevent giving redundant error messages.
+func (p *Parser) skip(toTheEndOf token.Type) {
+	for {
+		if p.tok.Type == token.EOF || p.tok.Type == toTheEndOf {
+			p.move()
+			break
+		}
+		p.move()
+	}
+}
+
 func (p *Parser) Parse() *ast.Program {
 	if len(p.lexerErrors) > 0 {
 		for _, e := range p.lexerErrors {
@@ -179,6 +192,9 @@ func (p *Parser) parseStatement() ast.Statement {
 				// reassignment
 				if stmt := p.parseReassignmentStatement(identTok); stmt != nil {
 					return stmt
+				} else {
+					// break if erroeneous (nil) statement to prevent calling parseIdentifier below.
+					break
 				}
 			}
 		}
@@ -206,25 +222,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parseOperator(); stmt != nil {
 			return stmt
 		}
-		/*
-			switch p.tok.Type {
-			case token.ADD, token.MINUS, token.DIV, token.MUL, token.AND, token.OR,
-				token.LT, token.GT, token.LTE, token.GTE:
-				if stmt := p.parseTwoArgsPrefixExpr(); stmt != nil {
-					return stmt
-				}
-			case token.NOT:
-				if stmt := p.parseNotExpr(); stmt != nil {
-					return stmt
-				}
-			default:
-				p.movews()
-				p.move()
-				if p.tok.Type != token.CLOSING_PAREN {
-					p.errorf(ErrUnclosedPrefixExpr, p.tok.Line, p.tok.Col, "missing ')' at the end of prefix expression")
-					return nil
-				}
-			}*/
+	case token.EOF:
+		break
 	default:
 		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s'", p.tok.Literal)
 		tokTyp := p.tok.Type
@@ -237,6 +236,22 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 	}
 	return nil
+}
+
+func isAcceptableTokenForParseExpr(typ token.Type) bool {
+	// these are EXPECTED token types for parseExpr.
+	// these can be expressions.
+	//
+	// other tokens cannot be exprs.
+	acceptableTokens := []token.Type{
+		token.STRING, token.INT, token.BOOL, token.IDENT, token.OPENING_PAREN,
+	}
+	for _, v := range acceptableTokens {
+		if v == typ {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Parser) parseStringLiteral() *ast.StringLiteral {
@@ -267,23 +282,21 @@ func (p *Parser) parseIdentifier() *ast.Identifier {
 
 // decide depending on peek token
 func (p *Parser) parseExpr() ast.Expr {
-	//peek := p.peek()
+	peek := p.peek()
 	p.move()
-	/*
-		switch peek.Type {
-		case token.STRING:
-			return p.parseStringLiteral()
-		case token.INT:
-			return p.parseIntLiteral()
-		case token.BOOL:
-			return p.parseBoolLiteral()
-		case token.IDENT:
-			return p.parseIdentifier()
-		case token.OPENING_PAREN:
-			return p.parseOperator()
-		}
-		return nil*/
-	return p.parseStatement()
+	switch peek.Type {
+	case token.STRING:
+		return p.parseStringLiteral()
+	case token.INT:
+		return p.parseIntLiteral()
+	case token.BOOL:
+		return p.parseBoolLiteral()
+	case token.IDENT:
+		return p.parseIdentifier()
+	case token.OPENING_PAREN:
+		return p.parseOperator()
+	}
+	return nil
 }
 
 func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
@@ -303,7 +316,22 @@ func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 		return nil
 	}
 	p.movews()
+	line, col := p.peek().Line, p.peek().Col
+	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+		if p.peek().Type == token.DOT {
+			goto noval
+		}
+		p.errorf(ErrUnexpectedToken, line, col, "unexpected token '%s' as value in variable declaration", p.peek().Literal)
+		p.skip(token.DOT)
+		return nil
+	}
+noval:
 	v.Value = p.parseExpr()
+	if v.Value == nil {
+		p.errorf(ErrNoValue, line, col, "no value set to variable")
+		p.skip(token.DOT)
+		return nil
+	}
 	p.movecws()
 	if p.tok.Type != token.DOT {
 		p.errorf(ErrUnfinishedStatement, p.tok.Line, p.tok.Col, "unexpected token: need a dot at the end of a statement")
@@ -322,7 +350,24 @@ func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.Reassignm
 		return nil
 	}
 	p.movews()
+	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+		p.errorf(ErrUnexpectedToken, p.peek().Line, p.peek().Col, "unexpected token '%s' as new value in reassignment statement", p.peek().Literal)
+		p.skip(token.DOT)
+		return nil
+	}
+	line, col := p.peek().Line, p.peek().Col
 	r.NewValue = p.parseExpr()
+	if r.NewValue == nil {
+		p.errorf(ErrNoValue, line, col, "no value in reassignment")
+		for {
+			if p.tok.Type == token.DOT || p.tok.Type == token.EOF {
+				p.move()
+				break
+			}
+			p.move()
+		}
+		return nil
+	}
 	if p.tok.Type != token.DOT {
 		p.errorf(ErrUnfinishedStatement, p.tok.Line, p.tok.Col, "unexpected token: need a dot at the end of a statement")
 		return nil
@@ -352,9 +397,20 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	r := &ast.ReturnStatement{Tok: p.tok}
 	line, col := p.tok.Line, p.tok.Col
 	p.movews()
+	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+		if p.peek().Type == token.DOT {
+			// first time using goto :D
+			goto noval
+		}
+		p.errorf(ErrUnexpectedToken, p.peek().Line, p.peek().Col, "unexpected token '%s' as return value in return statement", p.peek().Literal)
+		p.skip(token.DOT)
+		return nil
+	}
+noval:
 	r.Expr = p.parseExpr()
 	if r.Expr == nil {
 		p.errorf(ErrNoValue, line, col, "return statement with no value")
+		p.move()
 		return nil
 	}
 	if p.tok.Type != token.DOT {
@@ -372,10 +428,7 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	cond := p.parseExpr()
 	if cond == nil {
 		p.errorf(ErrNoValue, line, col, "missing condition in loop statement")
-		p.move() // skip {
-		if p.tok.Type == token.CLOSING_CURLY {
-			p.move() // skip }
-		}
+		p.skip(token.CLOSING_CURLY)
 		return nil
 	}
 	l.Cond = cond
@@ -523,54 +576,39 @@ func (p *Parser) parseOperator() *ast.PrefixExpr {
 		return nil
 	}
 	pe.Tok = p.tok
+	p.move()
 	for p.tok.Type != token.CLOSING_PAREN && p.tok.Type != token.EOF {
-		if arg := p.parseExpr(); arg != nil {
+		p.movecws() // if current token is whitespace: move.
+		if p.tok.Type == token.CLOSING_PAREN {
+			break
+		}
+		if !(isAcceptableTokenForParseExpr(p.tok.Type)) {
+			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' in '%s' expression", p.tok.Literal, pe.Tok.Literal)
+			p.skip(token.CLOSING_PAREN)
+			return nil
+		}
+		var arg ast.Expr
+		switch p.tok.Type {
+		case token.STRING:
+			arg = p.parseStringLiteral()
+		case token.INT:
+			arg = p.parseIntLiteral()
+		case token.BOOL:
+			arg = p.parseBoolLiteral()
+		case token.IDENT:
+			arg = p.parseIdentifier()
+		case token.OPENING_PAREN:
+			arg = p.parseOperator()
+		}
+		if arg != nil {
 			pe.Args = append(pe.Args, arg)
-		} /*else {
-			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' as argument to prefix expression", p.tok.Literal)
-		}*/
+		}
 	}
 	if p.tok.Type == token.EOF {
 		p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: missing ')' at the end of prefix expression")
 		return nil
 	}
 	// no need for 'p.tok.Type == token.CLOSING_PAREN'
-	p.move() // skip )
-	return pe
-}
-
-// TODO better error messages for these two methods
-
-func (p *Parser) parseTwoArgsPrefixExpr() *ast.PrefixExpr {
-	pe := &ast.PrefixExpr{Tok: p.tok}
-	p.movews()
-	for i := 0; i < 2; i++ {
-		if arg := p.parseExpr(); arg != nil {
-			pe.Args = append(pe.Args, arg)
-		}
-	}
-	line, col := p.tok.Line, p.tok.Col
-	p.movecws()
-	if p.tok.Type != token.CLOSING_PAREN {
-		p.errorf(ErrUnclosedPrefixExpr, line, col, "unclosed '%s' expression", token.PrefixExprName(pe.Tok.Type))
-		return nil
-	}
-	p.move() // skip )
-	return pe
-}
-
-func (p *Parser) parseNotExpr() *ast.PrefixExpr {
-	pe := &ast.PrefixExpr{Tok: p.tok}
-	p.movews()
-	if arg := p.parseExpr(); arg != nil {
-		pe.Args = append(pe.Args, arg)
-	}
-	line, col := p.tok.Line, p.tok.Col
-	p.movecws()
-	if p.tok.Type != token.CLOSING_PAREN {
-		p.errorf(ErrUnclosedPrefixExpr, line, col, "unclosed '%s' expression", token.PrefixExprName(pe.Tok.Type))
-		return nil
-	}
 	p.move() // skip )
 	return pe
 }

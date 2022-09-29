@@ -143,12 +143,29 @@ func TestParseVarDecl2(t *testing.T) {
 	commonThing(t, input)
 }
 
-func TestParseReassignment(t *testing.T) {
+func TestParseVarDecl3(t *testing.T) {
+	input := `
+		int age = int.
+		int city = datatype.
+		string name = {}.
+		bool is_raining = ...
+	`
+	commonThing(t, input)
+}
+
+func TestParseReassignment1(t *testing.T) {
 	input := `
 		name = "Abidin".
 		age=35.
 		age =65.
 		weather =  "Sunny".
+	`
+	commonThing(t, input)
+}
+
+func TestParseReassignment2(t *testing.T) {
+	input := `
+		name = 
 	`
 	commonThing(t, input)
 }
@@ -196,6 +213,11 @@ func TestReturn3(t *testing.T) {
 	commonThing(t, input)
 }
 
+func TestReturn4(t *testing.T) {
+	input := `return datatype.`
+	commonThing(t, input)
+}
+
 func TestLoop1(t *testing.T) {
 	input := `
 		loop  {}
@@ -213,6 +235,15 @@ func TestLoop2(t *testing.T) {
 func TestLoop3(t *testing.T) {
 	input := `
 		loop (lte 5 5) {
+			print "Heeey".
+		}
+	`
+	commonThing(t, input)
+}
+
+func TestLoop4(t *testing.T) {
+	input := `
+		loop datatype {
 			print "Heeey".
 		}
 	`
@@ -439,6 +470,13 @@ func TestParsePref5(t *testing.T) {
 func TestParsePref6(t *testing.T) {
 	input := `
 		(gte 5 5 6)
+	`
+	commonThing(t, input)
+}
+
+func TestParsePref7(t *testing.T) {
+	input := `
+		(gte datatype)
 	`
 	commonThing(t, input)
 }
