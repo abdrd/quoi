@@ -209,6 +209,13 @@ func (p *Parser) parseStatement() ast.Statement {
 			}
 			break
 		}
+		thisIsAFunctionFromANamespace := p.peek().Type == token.DOUBLE_COLON
+		if thisIsAFunctionFromANamespace {
+			if stmt := p.parseFunctionCallFromNamespace(identTok); stmt != nil {
+				return stmt
+			}
+			break
+		}
 		// identifier
 		if stmt := p.parseIdentifier(); stmt != nil {
 			return stmt
@@ -628,6 +635,11 @@ func (p *Parser) parseFunctionCall(ident token.Token) *ast.FunctionCall {
 	fc := &ast.FunctionCall{Tok: ident, Ident: &ast.Identifier{Tok: ident}}
 	// peek token is (
 	p.move()
+	if p.tok.Type != token.OPENING_PAREN {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' in function call expression. expected a '('", p.tok.Literal)
+		p.skip(token.CLOSING_PAREN)
+		return nil
+	}
 	p.movews()
 	if p.peek().Type == token.CLOSING_PAREN {
 		p.dmove()
@@ -674,4 +686,24 @@ func (p *Parser) parseFunctionCall(ident token.Token) *ast.FunctionCall {
 end:
 	p.move() // skip )
 	return fc
+}
+
+func (p *Parser) parseFunctionCallFromNamespace(namespaceTok token.Token) *ast.FunctionCallFromNamespace {
+	fcfn := &ast.FunctionCallFromNamespace{Namespace: &ast.Namespace{Tok: namespaceTok, Identifier: &ast.Identifier{Tok: namespaceTok}}}
+	p.movews()
+	if dColonOk, peek := p.expect(token.DOUBLE_COLON), p.peek(); !(dColonOk) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s' when calling a function from namespace '%s'. expected `::`", peek.Literal, fcfn.Namespace.Identifier.String())
+		p.move()
+		return nil
+	}
+	p.movews()
+	if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s'. expected a function name", peek.Literal)
+		p.move()
+		return nil
+	}
+	if fn := p.parseFunctionCall(p.tok); fn != nil {
+		fcfn.Function = fn
+	}
+	return fcfn
 }

@@ -513,3 +513,24 @@ func TestFC3(t *testing.T) {
 	`
 	commonThing(t, input)
 }
+
+func TestFCFromNS1(t *testing.T) {
+	input := `
+		Stdout::println("Hello world")
+	`
+	commonThing(t, input)
+}
+
+func TestFCFromNS2(t *testing.T) {
+	input := `
+		Stdin   ::   input("Hello world")
+	`
+	commonThing(t, input)
+}
+
+func TestFCFromNS3(t *testing.T) {
+	input := `
+		Stdin   ::input "Hello world")
+	`
+	commonThing(t, input)
+}
