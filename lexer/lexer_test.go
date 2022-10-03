@@ -490,7 +490,7 @@ func TestLexDatatype(t *testing.T) {
 }
 
 func TestNewTokens1(t *testing.T) {
-	input := "Stdout::print().(and)(or)(not)-+*/-"
+	input := "Stdout::print().(and)(or)(not)-+*/-,"
 	l := New(input)
 	want := []struct {
 		typ token.Type
@@ -516,6 +516,7 @@ func TestNewTokens1(t *testing.T) {
 		{token.MUL, "*"},
 		{token.DIV, "/"},
 		{token.MINUS, "-"},
+		{token.COMMA, ","},
 	}
 	got := []token.Token{}
 	for {

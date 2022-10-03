@@ -105,10 +105,6 @@ func (r ReassignmentStatement) String() string {
 }
 func (ReassignmentStatement) statement() {}
 
-/* PREFIX EXPR HERE */
-
-/* ******** */
-
 type BlockStatement struct {
 	Tok   token.Token
 	Stmts []Statement
@@ -206,3 +202,53 @@ func (p PrefixExpr) String() string {
 	return res
 }
 func (PrefixExpr) statement() {}
+
+type FunctionCall struct {
+	Tok   token.Token
+	Ident *Identifier
+	Args  []Expr
+}
+
+func (f FunctionCall) String() string {
+	if f.Ident == nil {
+		f.Ident = &Identifier{Tok: token.New(token.IDENT, "<<NIL_IDENT>>", 0, 0)}
+	}
+	res := f.Ident.String() + "("
+	for i, v := range f.Args {
+		putComma := i != len(f.Args)-1
+		res += v.String()
+		if putComma {
+			res += ","
+		}
+	}
+	res += ")"
+	return res
+}
+func (FunctionCall) statement() {}
+
+type Namespace struct {
+	Tok        token.Token
+	Identifier *Identifier // namespace identifier (e.g. Stdout)
+}
+
+type FunctionCallFromNamespace struct {
+	Namespace *Namespace
+	Function  *FunctionCall
+}
+
+func (f FunctionCallFromNamespace) String() string {
+	var res string
+	if f.Namespace == nil {
+		res += "<nil_namespace>"
+	} else {
+		res += f.Namespace.Tok.Literal
+	}
+	res += "::"
+	if f.Function == nil {
+		res += "<nil_function>()"
+	} else {
+		res += f.Function.String()
+	}
+	return res
+}
+func (FunctionCallFromNamespace) statement() {}

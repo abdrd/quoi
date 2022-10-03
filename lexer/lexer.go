@@ -310,14 +310,14 @@ func lexSymbol(l *Lexer) token.Token {
 	}
 	if l.ch == ':' {
 		lit := string(l.ch)
-		l.advance()
-		if l.ch == eof {
+		if l.peek() == eof {
 			l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'", lit)
 			l.state = stateStart
 			l.advance()
 			return token.New(token.ILLEGAL, lit, l.line, start)
 		}
-		if l.ch == ':' {
+		if l.peek() == ':' {
+			l.advance()
 			lit += string(l.ch)
 			l.advance()
 			l.state = stateStart

@@ -158,7 +158,7 @@ func TestParseReassignment1(t *testing.T) {
 		name = "Abidin".
 		age=35.
 		age =65.
-		weather =  "Sunny".
+		weather = "Sunny".
 	`
 	commonThing(t, input)
 }
@@ -489,6 +489,48 @@ func TestParserDotDot(t *testing.T) {
 func TestParserErroneous1(t *testing.T) {
 	input := `
 		garbage and here it is
+	`
+	commonThing(t, input)
+}
+
+func TestFC1(t *testing.T) {
+	input := `
+		hello()
+	`
+	commonThing(t, input)
+}
+
+func TestFC2(t *testing.T) {
+	input := `
+		hello  (world)
+	`
+	commonThing(t, input)
+}
+
+func TestFC3(t *testing.T) {
+	input := `
+		hello(world, people, wow)
+	`
+	commonThing(t, input)
+}
+
+func TestFCFromNS1(t *testing.T) {
+	input := `
+		Stdout::println("Hello world")
+	`
+	commonThing(t, input)
+}
+
+func TestFCFromNS2(t *testing.T) {
+	input := `
+		Stdin   ::   input("Hello world")
+	`
+	commonThing(t, input)
+}
+
+func TestFCFromNS3(t *testing.T) {
+	input := `
+		Stdin   ::input "Hello world")
 	`
 	commonThing(t, input)
 }
