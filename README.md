@@ -9,12 +9,18 @@ Quoi is an explicitly, and statically typed programming language.
 ##### Some code samples
 
 ```
-
+Stdout::println("Hello world")
 ```
 
 ```
 fun factorial(int n) -> int {
-    ; factorial here
+    int product = 1.
+    int j = 1.
+    loop (lte j n) {
+      j = j + 1.
+      product = (* product j).
+    }
+    return product.
 }
 ```
 
@@ -31,20 +37,30 @@ string      ; utf-8 encoded strings
 - Operators in Quoi are prefix operators (like in Lisp).
 - They are enclosed in parenthesis ("like in Lisp" 2).
 ```
-+ - * / @lt @lte @gt @gte
++ - * / ' lt lte gt gte 
 and or not
 ```
 ```
 (* (+ 1 2) (/ 6 2))         ; result is 9
 (and true true)             ; true
 (not (and true false))      ; true 
-(@lt 5 4)                   ; false
-(not (@gte 5 5))            ; false
+(lt 5 4)                   ; false
+(not (gte 5 5))            ; false
 ```
 
 - There are lists.
 
-**LISTS HERE**
+  - List literals start with an opening square bracket, and end with a closing one.
+  - List types are in the form of ```listof <type>```.
+  - There is a list indexing operator. (```(' list index)```)
+    - This operator returns the value stored at that index. To place a new value at that index use ```List::replace(list, index, new_value)```
+
+```
+listof string names = ["Jennifer", "Hasan"].
+listof int nx = [1, 2, 56, 9910].
+
+Stdout::println((' nx 2)) ; prints 56
+```
 
 <a id="datatypes"></a>
 There are user-defined data types (```datatype```).
