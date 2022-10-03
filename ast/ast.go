@@ -105,10 +105,6 @@ func (r ReassignmentStatement) String() string {
 }
 func (ReassignmentStatement) statement() {}
 
-/* PREFIX EXPR HERE */
-
-/* ******** */
-
 type BlockStatement struct {
 	Tok   token.Token
 	Stmts []Statement
@@ -206,3 +202,22 @@ func (p PrefixExpr) String() string {
 	return res
 }
 func (PrefixExpr) statement() {}
+
+type FunctionCall struct {
+	Tok   token.Token
+	Ident *Identifier
+	Args  []Expr
+}
+
+func (f FunctionCall) String() string {
+	if f.Ident == nil {
+		f.Ident = &Identifier{Tok: token.New(token.IDENT, "<<NIL_IDENT>>", 0, 0)}
+	}
+	res := f.Ident.String() + "("
+	for _, v := range f.Args {
+		res += v.String() + ","
+	}
+	res += ")"
+	return res
+}
+func (FunctionCall) statement() {}

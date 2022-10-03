@@ -76,6 +76,12 @@ func (p *Parser) move() {
 	p.tok = p.tokens[p.ptr]
 }
 
+// double move
+func (p *Parser) dmove() {
+	p.move()
+	p.move()
+}
+
 // if peek token is WHITESPACE, then move; else, don't do anything
 func (p *Parser) movews() {
 	if p.peek().Type == token.WHITESPACE {
@@ -98,6 +104,7 @@ func (p *Parser) peek() token.Token {
 	return p.tok
 }
 
+/*
 func (p *Parser) peekN(ahead uint) token.Token {
 	tokensLen := uint(len(p.tokens))
 	ok := p.ptr+ahead < tokensLen
@@ -106,6 +113,7 @@ func (p *Parser) peekN(ahead uint) token.Token {
 	}
 	return p.tokens[tokensLen-1]
 }
+*/
 
 // check if peek token's type is t.
 // if it is, then move.
@@ -185,20 +193,23 @@ func (p *Parser) parseStatement() ast.Statement {
 			return stmt
 		}
 	case token.IDENT:
-		if p.peekN(2).Type == token.EQUAL || p.peekN(1).Type == token.EQUAL {
-			identTok := p.tok
-			p.movews()
-			if p.peek().Type == token.EQUAL {
-				// reassignment
-				if stmt := p.parseReassignmentStatement(identTok); stmt != nil {
-					return stmt
-				} else {
-					// break if erroeneous (nil) statement to prevent calling parseIdentifier below.
-					break
-				}
+		identTok := p.tok
+		p.movews() // move to peek if it is ws
+		thisIsAReassignment := p.peek().Type == token.EQUAL
+		if thisIsAReassignment {
+			if stmt := p.parseReassignmentStatement(identTok); stmt != nil {
+				return stmt
 			}
+			break
 		}
-		// identifier as expression statement
+		thisIsAFunctionCall := p.peek().Type == token.OPENING_PAREN
+		if thisIsAFunctionCall {
+			if stmt := p.parseFunctionCall(identTok); stmt != nil {
+				return stmt
+			}
+			break
+		}
+		// identifier
 		if stmt := p.parseIdentifier(); stmt != nil {
 			return stmt
 		}
@@ -611,4 +622,56 @@ func (p *Parser) parseOperator() *ast.PrefixExpr {
 	// no need for 'p.tok.Type == token.CLOSING_PAREN'
 	p.move() // skip )
 	return pe
+}
+
+func (p *Parser) parseFunctionCall(ident token.Token) *ast.FunctionCall {
+	fc := &ast.FunctionCall{Tok: ident, Ident: &ast.Identifier{Tok: ident}}
+	// peek token is (
+	p.move()
+	p.movews()
+	if p.peek().Type == token.CLOSING_PAREN {
+		p.dmove()
+		return fc
+	}
+	if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' as argument value to function call", p.peek().Literal)
+		p.skip(token.CLOSING_PAREN)
+		return nil
+	}
+	arg := p.parseExpr()
+	if arg != nil {
+		fc.Args = append(fc.Args, arg)
+	}
+	p.movecws()
+	// one argument
+	if p.tok.Type == token.CLOSING_PAREN {
+		goto end
+	}
+	for {
+		p.movecws()
+		if p.tok.Type == token.CLOSING_PAREN {
+			goto end
+		}
+		if p.tok.Type == token.EOF {
+			p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed function call expression")
+			return nil
+		}
+		if p.tok.Type != token.COMMA {
+			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token: expected comma between arguments")
+			p.skip(token.CLOSING_PAREN)
+			return nil
+		}
+		p.move() // skip comma
+		if !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' as argument value to function call", p.peek().Literal)
+			p.skip(token.CLOSING_PAREN)
+			return nil
+		}
+		if arg := p.parseExpr(); arg != nil {
+			fc.Args = append(fc.Args, arg)
+		}
+	}
+end:
+	p.move() // skip )
+	return fc
 }
