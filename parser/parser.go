@@ -173,6 +173,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	switch p.tok.Type {
 	case token.WHITESPACE:
 		p.move()
+
 	// string literal
 	case token.STRING:
 		// no need to check nil for this method, but there's no harm in doing just that
@@ -187,9 +188,21 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parseBoolLiteral(); stmt != nil {
 			return stmt
 		}
+	case token.OPENING_SQUARE_BRACKET:
+		if stmt := p.parseListLiteral(); stmt != nil {
+			return stmt
+		}
+	case token.OPENING_PAREN:
+		if stmt := p.parseOperator(); stmt != nil {
+			return stmt
+		}
 	// parse variable declarations with primitive types
 	case token.STRINGKW, token.INTKW, token.BOOLKW:
 		if stmt := p.parseVariableDecl(); stmt != nil {
+			return stmt
+		}
+	case token.LISTOF:
+		if stmt := p.parseListVariableDecl(); stmt != nil {
 			return stmt
 		}
 	case token.IDENT:
@@ -234,10 +247,6 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 	case token.DATATYPE:
 		if stmt := p.parseDatatypeDeclaration(); stmt != nil {
-			return stmt
-		}
-	case token.OPENING_PAREN:
-		if stmt := p.parseOperator(); stmt != nil {
 			return stmt
 		}
 	case token.EOF:
@@ -302,6 +311,7 @@ func (p *Parser) parseIdentifier() *ast.Identifier {
 func (p *Parser) parseExpr() ast.Expr {
 	peek := p.peek()
 	p.move()
+	fmt.Println("parseXpr: ", p.tok)
 	switch peek.Type {
 	case token.STRING:
 		return p.parseStringLiteral()
@@ -313,6 +323,8 @@ func (p *Parser) parseExpr() ast.Expr {
 		return p.parseIdentifier()
 	case token.OPENING_PAREN:
 		return p.parseOperator()
+	case token.OPENING_SQUARE_BRACKET:
+		return p.parseListLiteral()
 	}
 	return nil
 }
@@ -706,4 +718,100 @@ func (p *Parser) parseFunctionCallFromNamespace(namespaceTok token.Token) *ast.F
 		fcfn.Function = fn
 	}
 	return fcfn
+}
+func (p *Parser) parseListVariableDecl() *ast.ListVariableDecl {
+	// current token is 'listof'
+	l := &ast.ListVariableDecl{Tok: p.tok}
+	var canBeATypeForList = func(tok token.Type) bool {
+		for _, v := range []token.Type{
+			token.INTKW, token.STRINGKW, token.BOOLKW, token.IDENT,
+			token.LISTOF, // multidimensional lists
+		} {
+			if tok == v {
+				return true
+			}
+		}
+		return false
+	}
+	p.movews()
+	if peek := p.peek(); !(canBeATypeForList(peek.Type)) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s' as type for list", peek.Literal)
+		p.skip(token.CLOSING_SQUARE_BRACKET)
+		return nil
+	}
+	p.move()
+	l.Typ = p.tok
+	p.movews()
+	if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s'. expected an identifier in list declaration", peek.Literal)
+		p.skip(token.CLOSING_SQUARE_BRACKET)
+		return nil
+	}
+	l.Name = p.parseIdentifier()
+	p.movecws()
+	if p.tok.Type != token.EQUAL {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s'. expected an equal sign", p.tok.Literal)
+		p.skip(token.CLOSING_SQUARE_BRACKET)
+		return nil
+	}
+	p.movews()
+	line, col := p.peek().Line, p.peek().Col
+	if openSqBrOk, peek := p.expect(token.OPENING_SQUARE_BRACKET), p.peek(); !(openSqBrOk) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s', where a '[' was expected", peek.Literal)
+		p.skip(token.CLOSING_SQUARE_BRACKET)
+		return nil
+	}
+	l.List = p.parseListLiteral()
+	if l.List == nil {
+		p.errorf(ErrNoValue, line, col, "missing value in list declaration 'listof %s %s'", l.Typ.Literal, l.Name.String())
+		return nil
+	}
+	return l
+}
+
+func (p *Parser) parseListLiteral() *ast.ListLiteral {
+	// current token is '['
+	l := &ast.ListLiteral{Tok: p.tok}
+	p.movews()
+	// no elems
+	if p.peek().Type == token.CLOSING_SQUARE_BRACKET {
+		p.dmove()
+		return l
+	}
+	if peek := p.peek(); !(isAcceptableTokenForParseExpr(p.peek().Type)) {
+		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s' as list element", peek.Literal)
+		p.skip(token.CLOSING_SQUARE_BRACKET)
+		return nil
+	}
+	if firstEl := p.parseExpr(); firstEl != nil {
+		l.Elems = append(l.Elems, firstEl)
+	}
+	for {
+		fmt.Println("listsit: ", p.tok)
+		p.movecws()
+		if p.tok.Type == token.CLOSING_SQUARE_BRACKET {
+			goto end
+		}
+		if p.tok.Type == token.EOF {
+			p.errorf(ErrUnexpectedEOF, p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed list literal")
+			return nil
+		}
+		if p.tok.Type != token.COMMA {
+			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s'. missing comma in list literal", p.tok.Literal)
+			p.skip(token.CLOSING_SQUARE_BRACKET)
+			return nil
+		}
+		p.move() // skip comma
+		if !(isAcceptableTokenForParseExpr(p.tok.Type)) {
+			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' as list element", p.tok.Literal)
+			p.skip(token.CLOSING_SQUARE_BRACKET)
+			return nil
+		}
+		if el := p.parseExpr(); el != nil {
+			l.Elems = append(l.Elems, el)
+		}
+	}
+end:
+	p.move() // skip ]
+	return l
 }

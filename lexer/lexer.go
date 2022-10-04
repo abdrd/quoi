@@ -123,7 +123,7 @@ func isWhitespace(ch rune) bool {
 
 func isSymbol(ch rune) bool {
 	str := string(ch)
-	symbols := ":.={}()-,+/*"
+	symbols := ":.={}()-,+/*'[]"
 	return strings.Contains(symbols, str)
 }
 
@@ -251,7 +251,7 @@ func lexIdentOrKw(l *Lexer) token.Token {
 		"int": token.INTKW, "string": token.STRINGKW, "bool": token.BOOLKW, "block": token.BLOCK,
 		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
 		"loop": token.LOOP, "return": token.RETURN, "and": token.AND, "or": token.OR, "not": token.NOT,
-		"lt": token.LT, "lte": token.LTE, "gt": token.GT, "gte": token.GTE,
+		"lt": token.LT, "lte": token.LTE, "gt": token.GT, "gte": token.GTE, "listof": token.LISTOF,
 	}
 	start := l.pointer
 	for canBeAnIdentifierName(l.ch) || isDigit(l.ch) {
@@ -284,17 +284,20 @@ func lexIdentOrKw(l *Lexer) token.Token {
 
 func lexSymbol(l *Lexer) token.Token {
 	var symbols = map[byte]token.Type{
-		'.': token.DOT,
-		'=': token.EQUAL,
-		'{': token.OPENING_CURLY,
-		'}': token.CLOSING_CURLY,
-		'(': token.OPENING_PAREN,
-		')': token.CLOSING_PAREN,
-		',': token.COMMA,
-		'+': token.ADD,
-		'-': token.MINUS, // this is redundant
-		'*': token.MUL,
-		'/': token.DIV,
+		'.':  token.DOT,
+		'=':  token.EQUAL,
+		'{':  token.OPENING_CURLY,
+		'}':  token.CLOSING_CURLY,
+		'(':  token.OPENING_PAREN,
+		')':  token.CLOSING_PAREN,
+		',':  token.COMMA,
+		'+':  token.ADD,
+		'-':  token.MINUS, // this is redundant
+		'*':  token.MUL,
+		'/':  token.DIV,
+		'\'': token.SINGLE_QUOTE,
+		'[':  token.OPENING_SQUARE_BRACKET,
+		']':  token.CLOSING_SQUARE_BRACKET,
 	}
 	start := l.col
 	if l.ch == '-' {
