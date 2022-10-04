@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"quoi/token"
+	"strings"
 )
 
 type Program struct {
@@ -252,3 +253,45 @@ func (f FunctionCallFromNamespace) String() string {
 	return res
 }
 func (FunctionCallFromNamespace) statement() {}
+
+type ListLiteral struct {
+	Tok   token.Token // [
+	Elems []Expr
+}
+
+func (l ListLiteral) String() string {
+	var res strings.Builder
+	res.WriteString("[")
+	for i, v := range l.Elems {
+		putComma := i != len(l.Elems)-1
+		res.WriteString(v.String())
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteString("]")
+	return res.String()
+}
+func (ListLiteral) statement() {}
+
+type ListVariableDecl struct {
+	Tok  token.Token
+	Typ  token.Token // types of elements in the list
+	Name *Identifier
+	List *ListLiteral
+}
+
+func (l ListVariableDecl) String() string {
+	var res strings.Builder
+	ident := "<nil_varname>"
+	if l.Name != nil {
+		ident = l.Name.String()
+	}
+	list := "<nil_list>"
+	if l.List != nil {
+		list = l.List.String()
+	}
+	res.WriteString(fmt.Sprintf("listof %s %s = %s.", l.Typ.Literal, ident, list))
+	return res.String()
+}
+func (ListVariableDecl) statement() {}
