@@ -371,5 +371,6 @@ func (l *Lexer) Next() token.Token {
 	}
 	ill := token.New(token.ILLEGAL, string(l.ch), l.line, l.col)
 	l.advance()
+	l.state = stateStart
 	return ill
 }
