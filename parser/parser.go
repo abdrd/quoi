@@ -754,17 +754,23 @@ func (p *Parser) parseListVariableDecl() *ast.ListVariableDecl {
 		return nil
 	}
 	p.movews()
-	line, col := p.peek().Line, p.peek().Col
 	if openSqBrOk, peek := p.expect(token.OPENING_SQUARE_BRACKET), p.peek(); !(openSqBrOk) {
 		p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s', where a '[' was expected", peek.Literal)
 		p.skip(token.CLOSING_SQUARE_BRACKET)
 		return nil
 	}
-	l.List = p.parseListLiteral()
-	if l.List == nil {
-		p.errorf(ErrNoValue, line, col, "missing value in list declaration 'listof %s %s'", l.Typ.Literal, l.Name.String())
+	list := p.parseListLiteral()
+	thereWasAnError := list == nil
+	if thereWasAnError {
+		p.skip(token.DOT)
 		return nil
 	}
+	l.List = list
+	if p.tok.Type != token.DOT {
+		p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s', expected a dot. unfinished list declaration statement", p.tok.Literal)
+		return nil
+	}
+	p.move() // skip .
 	return l
 }
 

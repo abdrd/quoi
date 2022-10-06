@@ -577,3 +577,31 @@ func TestListLit6(t *testing.T) {
 	`
 	commonThing(t, input)
 }
+
+func TestListDecl1(t *testing.T) {
+	input := `
+		listof int nx = [1, 12, 123, 1234].
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl2(t *testing.T) {
+	input := `
+		listof string names=[].
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl3(t *testing.T) {
+	input := `
+		listof string names=[.
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl4(t *testing.T) {
+	input := `
+		listof string names=]
+	`
+	commonThing(t, input)
+}
