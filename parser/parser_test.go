@@ -535,10 +535,10 @@ func TestFCFromNS3(t *testing.T) {
 	commonThing(t, input)
 }
 
-// TODO BUGGY vvv
 func TestListLit1(t *testing.T) {
 	input := `
-		["hello" , 1, true, wow]
+		[  "hello"   , 1,   true, wow
+		]
 	`
 	commonThing(t, input)
 }
@@ -574,6 +574,34 @@ func TestListLit5(t *testing.T) {
 func TestListLit6(t *testing.T) {
 	input := `
 		[ "hey" true ]
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl1(t *testing.T) {
+	input := `
+		listof int nx = [1, 12, 123, 1234].
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl2(t *testing.T) {
+	input := `
+		listof string names=[].
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl3(t *testing.T) {
+	input := `
+		listof string names=[.
+	`
+	commonThing(t, input)
+}
+
+func TestListDecl4(t *testing.T) {
+	input := `
+		listof string names=]
 	`
 	commonThing(t, input)
 }
