@@ -311,7 +311,6 @@ func (p *Parser) parseIdentifier() *ast.Identifier {
 func (p *Parser) parseExpr() ast.Expr {
 	peek := p.peek()
 	p.move()
-	fmt.Println("parseXpr: ", p.tok)
 	switch peek.Type {
 	case token.STRING:
 		return p.parseStringLiteral()
@@ -786,8 +785,8 @@ func (p *Parser) parseListLiteral() *ast.ListLiteral {
 	if firstEl := p.parseExpr(); firstEl != nil {
 		l.Elems = append(l.Elems, firstEl)
 	}
+	p.movecws()
 	for {
-		fmt.Println("listsit: ", p.tok)
 		p.movecws()
 		if p.tok.Type == token.CLOSING_SQUARE_BRACKET {
 			goto end
@@ -802,8 +801,8 @@ func (p *Parser) parseListLiteral() *ast.ListLiteral {
 			return nil
 		}
 		p.move() // skip comma
-		if !(isAcceptableTokenForParseExpr(p.tok.Type)) {
-			p.errorf(ErrUnexpectedToken, p.tok.Line, p.tok.Col, "unexpected token '%s' as list element", p.tok.Literal)
+		if peek := p.peek(); !(isAcceptableTokenForParseExpr(peek.Type)) {
+			p.errorf(ErrUnexpectedToken, peek.Line, peek.Col, "unexpected token '%s' as list element", peek.Literal)
 			p.skip(token.CLOSING_SQUARE_BRACKET)
 			return nil
 		}
