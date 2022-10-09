@@ -177,7 +177,7 @@ func (p *Parser) moveif(cond bool) {
 func (p *Parser) Parse() *ast.Program {
 	if len(p.lexerErrors) > 0 {
 		for _, e := range p.lexerErrors {
-			fmt.Printf("[!] error code:%d: line:col(%d:%d) %s\n", e.ErrCode, e.Line, e.Column, e.Msg)
+			fmt.Printf("[!] line:col(%d:%d) %s\n", e.Line, e.Column, e.Msg)
 		}
 		os.Exit(1)
 	}

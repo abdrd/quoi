@@ -10,11 +10,9 @@ import (
 const eof = rune(-1)
 
 type (
-	state   int
-	ErrCode int
+	state int
 	// for little syntax errors to pass to the parser
 	Err struct {
-		ErrCode      ErrCode
 		Msg          string
 		Column, Line int
 	}
@@ -29,14 +27,6 @@ const (
 	stateLexIdentKw
 	stateLexSymbol   // lexing symbols like {, ., ), etc.
 	stateLexOperator // lexing pseudo-functions (e.g. @strconcat)
-)
-
-const (
-	ErrUnclosedString ErrCode = iota
-	ErrInvalidNegativeInteger
-	ErrUnknownSymbol
-	ErrNoOperatorNameAfterAt
-	ErrNewlineInString
 )
 
 type lexFn func(*Lexer) token.Token
@@ -78,12 +68,11 @@ func New(input string) *Lexer {
 	return l
 }
 
-func (l *Lexer) errorf(errCode ErrCode, col, line int, formatMsg string, elems ...interface{}) {
+func (l *Lexer) errorf(col, line int, formatMsg string, elems ...interface{}) {
 	l.Errs = append(l.Errs, Err{
-		ErrCode: errCode,
-		Msg:     fmt.Sprintf(formatMsg, elems...),
-		Column:  col,
-		Line:    line,
+		Msg:    fmt.Sprintf(formatMsg, elems...),
+		Column: col,
+		Line:   line,
 	})
 }
 
@@ -180,7 +169,7 @@ func lexInt(l *Lexer) token.Token {
 		l.advance()
 	}
 	if !(isDigit(l.ch)) {
-		l.errorf(ErrInvalidNegativeInteger, int(l.col), int(l.line), "no value after minus")
+		l.errorf(int(l.col), int(l.line), "no value after minus")
 	}
 	for isDigit(l.ch) {
 		if l.hasReachedEOF {
@@ -207,12 +196,12 @@ func lexString(l *Lexer) token.Token {
 	line := l.line
 	for !(is(doubleQuote, l.ch)) {
 		if l.hasReachedEOF {
-			l.errorf(ErrUnclosedString, int(l.col), int(l.line), "unexpected end-of-file: unclosed string")
+			l.errorf(int(l.col), int(l.line), "unexpected end-of-file: unclosed string")
 			break
 		}
 		// no newlines in strings
 		if l.ch == '\n' {
-			l.errorf(ErrNewlineInString, int(l.col), int(l.line), "illegal newline in string literal")
+			l.errorf(int(l.col), int(l.line), "illegal newline in string literal")
 		}
 		l.advance()
 	}
@@ -314,7 +303,7 @@ func lexSymbol(l *Lexer) token.Token {
 	if l.ch == ':' {
 		lit := string(l.ch)
 		if l.peek() == eof {
-			l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'", lit)
+			l.errorf(int(start), int(l.line), "unknown symbol '%s'", lit)
 			l.state = stateStart
 			l.advance()
 			return token.New(token.ILLEGAL, lit, l.line, start)
@@ -332,7 +321,7 @@ func lexSymbol(l *Lexer) token.Token {
 	l.advance()
 	l.state = stateStart
 	if !(found) {
-		l.errorf(ErrUnknownSymbol, int(start), int(l.line), "unknown symbol '%s'", lit)
+		l.errorf(int(start), int(l.line), "unknown symbol '%s'", lit)
 		return token.New(token.ILLEGAL, lit, l.line, l.col)
 	}
 	return token.New(tok, lit, l.line, l.col)
