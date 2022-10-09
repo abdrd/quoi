@@ -11,7 +11,7 @@ import (
 func atoi(p *Parser) int64 {
 	n, err := strconv.ParseInt(p.tok.Literal, 10, 64)
 	if err != nil {
-		p.errorf(ErrInvalidInteger, p.tok.Line, p.tok.Col, "invalid integer: unable to convert '%s' to an integer", p.tok.Literal)
+		p.errorf(p.tok.Line, p.tok.Col, "invalid integer: unable to convert '%s' to an integer", p.tok.Literal)
 	}
 	return n
 }
@@ -25,7 +25,7 @@ func atob(p *Parser) bool {
 	case "false":
 		lit = false
 	default:
-		p.errorf(ErrInvalidBoolean, p.tok.Line, p.tok.Col, "invalid boolean: unable to convert '%s' to a boolean", p.tok.Literal)
+		p.errorf(p.tok.Line, p.tok.Col, "invalid boolean: unable to convert '%s' to a boolean", p.tok.Literal)
 	}
 	return lit
 }
