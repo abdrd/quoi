@@ -605,3 +605,36 @@ func TestListDecl4(t *testing.T) {
 	`
 	commonThing(t, input)
 }
+
+func TestOp1(t *testing.T) {
+	input := `
+		(lte y List::length(names))
+		(' names x)
+	`
+	commonThing(t, input)
+}
+
+func TestGeneral2(t *testing.T) {
+	input := `
+		Stdout::println("Hello world")
+		datatype User {
+			string name
+		}
+		block
+			int x = 5.
+		end
+		int x = 0.
+		listof string names = ["Jennifer", "Hasan", "Jack"].
+		loop (lte x List::length(names)) {
+			Stdout::print(x)
+			Stdout::println((' names x))
+			x = x + 1.
+		} 
+	`
+	commonThing(t, input)
+	//l := lexer.New(input)
+	//p := New(l)
+
+	//program := p.Parse()
+	//ast.Print(os.Stdout, program)
+}
