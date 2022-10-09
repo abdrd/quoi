@@ -14,11 +14,8 @@ type Err struct {
 	Column, Line uint
 }
 
-// fmt.Sprintf
-var spf = fmt.Sprintf
-
 func newErr(line, col uint, formatMsg string, elems ...interface{}) Err {
-	return Err{Msg: spf(formatMsg, elems...), Column: col, Line: line}
+	return Err{Msg: fmt.Sprintf(formatMsg, elems...), Column: col, Line: line}
 }
 
 type Parser struct {
@@ -728,9 +725,8 @@ func (p *Parser) parseListVariableDecl() *ast.ListVariableDecl {
 		return false
 	}
 	p.movews()
-	if peek := p.peek(); !(canBeATypeForList(peek.Type)) {
-		p.errorf(peek.Line, peek.Col, "unexpected token '%s' as type for list", peek.Literal)
-		p.skip(token.CLOSING_SQUARE_BRACKET)
+	if peek := p.peek(); p.errif(!(canBeATypeForList(peek.Type)), newErr(peek.Line, peek.Col,
+		"unexpected token '%s' as type for list", peek.Literal)) {
 		return nil
 	}
 	p.move()
