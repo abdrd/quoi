@@ -122,7 +122,12 @@ for (int i = 0; i < 10; i++) {
 ```
 Equivalent of this classical loop above: 
 ```
-
+int i = 0.
+loop (lt i 10) {
+  string msg = String::concat("#", String::from_int(i), "\n").
+  Stdout::println(msg).
+  i = i + 1.
+}
 ```
 
 Branching:
@@ -151,11 +156,7 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return, an
 
 - Statements end with dots.
 - Spacing is not strict. As long as you separate keywords with at least one whitespace character, the rest doesn't matter.
-- Escape sequences: 
-  - \           to escape any character (e.g. "C:\\\\" is "C:\\"; "\\"" is escaping a quote, etc.)
-  - \n          line feed
-  - \r          carriage return
-  - \t          horizontal tab
+- Escape sequences (TODO)
 - Newlines are required after every field in ```datatype``` declarations.
 
 ##### Some notes about the semantics
@@ -205,11 +206,12 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return, an
     int age = 30.
 
     fun celebrate_birthday(int age) {
-        ; increment age here (with something like ++ in other languages)
+        Stdout::println("Happy birthday").
+        age = age + 1.
     }
-
-    celebrate_birthday(age).    ; ...
-    age                 ; 31
+    
+    celebrate_birthday(age).
+    Stdout::println(age).       ; 31
     ```
 - No function signatures.
 - Functions are not values. They cannot be assigned to variables.

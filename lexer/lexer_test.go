@@ -195,25 +195,6 @@ func TestLexString2(t *testing.T) {
 	t.Logf("g")
 }
 
-/*
-func TestLexStringWithEscape(t *testing.T) {
-	input := `"\n"`
-	l := New(input)
-	tok := l.Next()
-	if tok.Type != token.STRING {
-		t.Errorf("1: %s\n", tok.Type)
-	}
-	if tok.Literal != "\n" {
-		t.Errorf("2: %s\n", tok.Literal)
-	}
-	if len(l.Errs) > 0 {
-		for _, v := range l.Errs {
-			t.Logf("lexer err: %+v\n", v)
-		}
-	}
-}
-*/
-
 func TestLexStringError(t *testing.T) {
 	input := `"hey`
 	l := New(input)
@@ -342,7 +323,7 @@ func TestStringPrecedingWhitespace(t *testing.T) {
 	str := l.Next()
 	ws := l.Next()
 	check1(t, str, "Hello", token.STRING)
-	check1(t, ws, "  ", token.WHITESPACE)
+	//check1(t, ws, "  ", token.WHITESPACE)
 	printTok(t, str)
 	printTok(t, ws)
 	printErrs(t, l.Errs)
@@ -388,28 +369,23 @@ func TestLexFunctionDef(t *testing.T) {
 		lit string
 	}{
 		{token.FUN, "fun"},
-		{token.WHITESPACE, " "},
 		{token.IDENT, "greet"},
 		{token.OPENING_PAREN, "("},
 		{token.STRINGKW, "string"},
-		{token.WHITESPACE, " "},
 		{token.IDENT, "name"},
 		{token.CLOSING_PAREN, ")"},
-		{token.WHITESPACE, " "},
 		{token.ARROW, "->"},
-		{token.WHITESPACE, " "},
 		{token.STRINGKW, "string"},
-		{token.WHITESPACE, " "},
 		{token.OPENING_CURLY, "{"},
-		{token.WHITESPACE, "\n\t"},
+		{token.NEWLINE, "\\n"},
 		{token.RETURN, "return"},
-		{token.WHITESPACE, " "},
 		{token.STRING, "Hello"},
 		{token.DOT, "."},
-		{token.WHITESPACE, "\n"},
+		{token.NEWLINE, "\\n"},
 		{token.CLOSING_CURLY, "}"},
 		{token.EOF, "<<<EOF>>>"},
 	}
+
 	got := []token.Token{}
 	for {
 		tok := l.Next()
@@ -449,25 +425,20 @@ func TestLexDatatype(t *testing.T) {
 		lit string
 	}{
 		{token.DATATYPE, "datatype"},
-		{token.WHITESPACE, " "},
 		{token.IDENT, "User"},
-		{token.WHITESPACE, " "},
 		{token.OPENING_CURLY, "{"},
-		{token.WHITESPACE, "\n\t"},
+		{token.NEWLINE, "\\n"},
 		{token.STRINGKW, "string"},
-		{token.WHITESPACE, " "},
 		{token.IDENT, "name"},
-		{token.WHITESPACE, "\n\t"},
+		{token.NEWLINE, "\\n"},
 		{token.INTKW, "int"},
-		{token.WHITESPACE, " "},
 		{token.IDENT, "age"},
-		{token.WHITESPACE, "\n\t"},
+		{token.NEWLINE, "\\n"},
 		{token.STRINGKW, "string"},
-		{token.WHITESPACE, " "},
 		{token.IDENT, "city"},
-		{token.WHITESPACE, "\n"},
+		{token.NEWLINE, "\\n"},
 		{token.CLOSING_CURLY, "}"},
-		{token.WHITESPACE, "\n"},
+		{token.NEWLINE, "\\n"},
 	}
 	got := []token.Token{}
 	for {
