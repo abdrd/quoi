@@ -111,9 +111,6 @@ func TestLexWs(t *testing.T) {
 	input := "\n   "
 	l := New(input)
 	tok := l.Next()
-	if tok.Type != token.WHITESPACE {
-		t.Errorf("1: %s\n", tok.Type)
-	}
 	fmt.Printf("len(tok.Literal)=%d  len(input)=%d", len(tok.Literal), len(input))
 	if tok.Literal != input {
 		t.Errorf("2: %s\n", tok.Literal)

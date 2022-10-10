@@ -1,2 +1,6 @@
+
 parser/parser.go
-	TODO better error messages for these two methods
+	TODO make this memory efficient
+	TODO BUGGY vvv
+parser/parser_test.go
+	TODO TestPrefExpr1

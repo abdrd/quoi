@@ -338,7 +338,6 @@ func (l *Lexer) Next() token.Token {
 			l.state = stateLexNewline
 		} else if isDigit(l.ch) || l.ch == '-' {
 			if l.ch == '-' && !(isDigit(l.peek())) {
-				fmt.Println("must be a symbol")
 				// this must be a symbol
 				l.state = stateLexSymbol
 				return l.Next()

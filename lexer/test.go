@@ -102,8 +102,6 @@ func tokRepr(t token.Token) string {
 	return fmt.Sprintf("(%s, %s)\n", t.Type, t.Literal)
 }
 
-const ignoreWs = true
-
 // ignore whitespace tokens
 func runTest(sourceFile string) {
 	l := New(readFile(sourceFile))
@@ -112,11 +110,6 @@ func runTest(sourceFile string) {
 		t := l.Next()
 		if t.Type == token.EOF {
 			break
-		}
-		if ignoreWs {
-			if t.Type == token.WHITESPACE {
-				continue
-			}
 		}
 		repr := tokRepr(t)
 		res.WriteString(repr)

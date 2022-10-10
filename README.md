@@ -17,7 +17,7 @@ fun factorial(int n) -> int {
     int product = 1.
     int j = 1.
     loop (lte j n) {
-      j = j + 1.
+      j = (+ j 1).
       product = (* product j).
     }
     return product.
@@ -126,7 +126,7 @@ int i = 0.
 loop (lt i 10) {
   string msg = String::concat("#", String::from_int(i), "\n").
   Stdout::println(msg).
-  i = i + 1.
+  i = (+ i 1).
 }
 ```
 
@@ -207,7 +207,7 @@ datatype, fun, int, string, bool, block, end, if, elseif, else, loop, return, an
 
     fun celebrate_birthday(int age) {
         Stdout::println("Happy birthday").
-        age = age + 1.
+        age = (+ age 1).
     }
     
     celebrate_birthday(age).
