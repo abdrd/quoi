@@ -43,598 +43,218 @@ func TestParserAdvance(t *testing.T) {
 	fmt.Println("===========")
 }
 
-func printStmts(t *testing.T, stmts []ast.Statement) {
-	if len(stmts) > 0 {
-		for i, v := range stmts {
-			t.Logf("%s Statement#%d: %s\n", reflect.TypeOf(v), i, v.String())
+func _parse(input string) (*ast.Program, []Err, []lexer.Err) {
+	l := lexer.New(input)
+	p := New(l)
+	return p.Parse(), p.Errs, p.lexerErrors
+}
+
+func check_stmt_count(t *testing.T, program *ast.Program, expectedNum int) {
+	if lps := len(program.Stmts); lps != expectedNum {
+		t.Errorf("ERROR <!!!> len(*ast.Program.Stmts) != %d, but '%d'\n\n", expectedNum, lps)
+	}
+}
+
+/*
+func check_lit(t *testing.T, node ast.Node, expectedLit string) {
+	if ns := node.String(); ns != expectedLit {
+		t.Errorf("node.String() != '%s', but '%s'\n", expectedLit, ns)
+	}
+}*/
+
+func check_error_count(t *testing.T, errs []Err, expectedNum int) {
+	if lpe := len(errs); lpe != expectedNum {
+		t.Errorf("ERROR <!!!> len(*Parser.Errs) != %d, but '%d'\n\n", expectedNum, lpe)
+	}
+}
+
+func print_errs(t *testing.T, errs []Err) {
+	for _, v := range errs {
+		t.Logf("___________________________________________\n")
+		t.Logf("line:col %d:%d :: %s\n", v.Line, v.Column, v.Msg)
+		t.Logf("___________________________________________\n")
+	}
+}
+
+func print_stmts(t *testing.T, program *ast.Program) {
+	for _, v := range program.Stmts {
+		t.Logf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+		t.Logf("%s :: %s\n", reflect.TypeOf(v), v)
+		t.Logf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+	}
+}
+
+/*
+literals,
+	string, identifier, int, bool, list
+datatype,
+block,
+prefix expr
+variable declaration,
+	int, string, bool, list
+reassignment
+function call
+function call from namespace
+return
+loop
+*/
+
+func TestLit1(t *testing.T) {
+	input := `
+			"Hello".
+			1316.
+			-5471.
+			true.
+			false.
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	check_stmt_count(t, program, 5)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestVarDecl1(t *testing.T) {
+	input := `
+		int n = 4.
+		string x = "Hello".
+		bool y = true.
+		User u = "User#1".
+		User u = "hey".
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	check_stmt_count(t, program, 5)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestVarDecl2(t *testing.T) {
+	input := `
+		int a = 1
+		User u = "hey".
+		bool x true.
+		listof } a = [].
+		string
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 4)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestVarDecl3(t *testing.T) {
+	input := `
+		; listof string names = ["Jennifer", "Hasan", "Ali", "Ayşe",].
+		; listof string a = ["He",]
+		; listof string a = ["He",
+		listof string names = ["Jennifer", "Hasan", "Ali", "Ayşe"].
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestDT1(t *testing.T) {
+	input := `
+		datatype City {
+			string name
+			int x
+			int y 
+			bool z
+			User u
+
+			; hello
 		}
-	}
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }
 
-func TestParseStringLit(t *testing.T) {
-	input := `"Hey""very good"`
-	l := lexer.New(input)
-	p := New(l)
-	parsed := p.Parse()
-	if parsed == nil {
-		t.Errorf("parsed is nil")
-		t.FailNow()
-	}
-	if len(parsed.Stmts) < 1 {
-		t.Errorf("1: %d\n", len(parsed.Stmts))
-	}
-	if parsed.Stmts[0].String() != "\"Hey\"" {
-		t.Errorf("2: %s\n", parsed.Stmts[0].String())
-	}
-	printStmts(t, parsed.Stmts)
-}
-
-func TestParseIntLit(t *testing.T) {
-	input := `1245-1516` // 1245, and -1516
-	l := lexer.New(input)
-	p := New(l)
-	parsed := p.Parse()
-	if parsed == nil {
-		t.Errorf("parsed is nil")
-		t.FailNow()
-	}
-	if len(parsed.Stmts) < 1 {
-		t.Errorf("1: %d\n", len(parsed.Stmts))
-	}
-	printStmts(t, parsed.Stmts)
-}
-
-func TestParseBoolLit(t *testing.T) {
-	input := `true`
-	l := lexer.New(input)
-	p := New(l)
-	parsed := p.Parse()
-	if parsed == nil {
-		t.Errorf("parsed is nil")
-		t.FailNow()
-	}
-	if len(parsed.Stmts) < 1 {
-		t.Errorf("1: %d\n", len(parsed.Stmts))
-	}
-	printStmts(t, parsed.Stmts)
-}
-
-func printErrs1(t *testing.T, errs []Err) {
-	if len(errs) > 0 {
-		for i, e := range errs {
-			t.Logf("error#%d: %+v\n", i, e)
+func TestDT2(t *testing.T) {
+	input := `
+		; datatype City {}
+		; datatype {}
+		; datatype X {
+		; datatype X }
+		; datatype X { int x }
+		; datatype X { 
+		;	int x string name
+		;}
+		datatype X { int x
 		}
-	}
-}
-
-func TestParseVarDecl1(t *testing.T) {
-	input := `
-		int i = 0.
-		int age= 30.
-		string name="Jennifer".
-		bool is_raining=       true.`
-	l := lexer.New(input)
-	p := New(l)
-	parsed := p.Parse()
-	if len(parsed.Stmts) != 4 {
-		t.Errorf("1: %d\n", len(parsed.Stmts))
-	}
-	printErrs(t, p.lexerErrors)
-	printErrs1(t, p.Errs)
-	printStmts(t, parsed.Stmts)
-}
-
-func commonThing(t *testing.T, input string) {
-	l := lexer.New(input)
-	p := New(l)
-	parsed := p.Parse()
-	printErrs(t, p.lexerErrors)
-	printErrs1(t, p.Errs)
-	printStmts(t, parsed.Stmts)
-}
-
-func TestParseVarDecl2(t *testing.T) {
-	input := `
-		int age = "Hey".
-		int city = true.
-		string name = 67.
-		bool is_raining = true.
 	`
-	commonThing(t, input)
-}
-
-func TestParseVarDecl3(t *testing.T) {
-	input := `
-		int age = int.
-		int city = datatype.
-		string name = {}.
-		bool is_raining = ...
-	`
-	commonThing(t, input)
-}
-
-func TestParseReassignment1(t *testing.T) {
-	input := `
-		name = "Abidin".
-		age=35.
-		age =65.
-		weather = "Sunny".
-	`
-	commonThing(t, input)
-}
-
-func TestParseReassignment2(t *testing.T) {
-	input := `
-		name = 
-	`
-	commonThing(t, input)
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }
 
 func TestBlock1(t *testing.T) {
 	input := `
-		block
+		block 
+			Stdout::println("Hey").
+			print_it(1416).
 		end
 	`
-	commonThing(t, input)
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }
 
 func TestBlock2(t *testing.T) {
 	input := `
-		block
-	`
-	commonThing(t, input)
-}
-
-func TestBlock3(t *testing.T) {
-	input := `
-		block
-			print a.
-			print @lte 5 5.
-		end
-		block 
-			print "Hello world!".
-		end.
-	`
-	commonThing(t, input)
-}
-
-func TestReturn1(t *testing.T) {
-	input := "return."
-	commonThing(t, input)
-}
-
-func TestReturn2(t *testing.T) {
-	input := "return \"hello guys\""
-	commonThing(t, input)
-}
-
-func TestReturn3(t *testing.T) {
-	input := `return @strconcat "Hello " "world".`
-	commonThing(t, input)
-}
-
-func TestReturn4(t *testing.T) {
-	input := `return datatype.`
-	commonThing(t, input)
-}
-
-func TestLoop1(t *testing.T) {
-	input := `
-		loop  {}
-	`
-	commonThing(t, input)
-}
-
-func TestLoop2(t *testing.T) {
-	input := `
-		loop (lte 5 5) {
-	`
-	commonThing(t, input)
-}
-
-func TestLoop3(t *testing.T) {
-	input := `
-		loop (lte 5 5) {
-			print "Heeey".
-		}
-	`
-	commonThing(t, input)
-}
-
-func TestLoop4(t *testing.T) {
-	input := `
-		loop datatype {
-			print "Heeey".
-		}
-	`
-	commonThing(t, input)
-}
-
-func TestDatatype1(t *testing.T) {
-	input := "datatype{}"
-	commonThing(t, input)
-}
-
-func TestDatatype2(t *testing.T) {
-	input := "datatype {}"
-	commonThing(t, input)
-}
-
-func TestDatatype3(t *testing.T) {
-	input := "datatype"
-	commonThing(t, input)
-}
-
-func TestDatatype4(t *testing.T) {
-	input := "datatype{"
-	commonThing(t, input)
-}
-
-func TestDatatype5(t *testing.T) {
-	input := "datatype {"
-	commonThing(t, input)
-}
-
-func TestDatatype6(t *testing.T) {
-	input := "datatype }"
-	commonThing(t, input)
-}
-
-func TestDatatype7(t *testing.T) {
-	input := "datatype "
-	commonThing(t, input)
-}
-
-func TestDatatype8(t *testing.T) {
-	input := `datatype City {`
-	commonThing(t, input)
-}
-
-func TestDatatype9(t *testing.T) {
-	commonThing(t, `datatype City{`)
-}
-
-func TestDatatype10(t *testing.T) {
-	commonThing(t, `datatype City}`)
-}
-
-func TestDatatype11(t *testing.T) {
-	commonThing(t, `datatype City {}`)
-}
-
-func TestDatatype12(t *testing.T) {
-	commonThing(t, `datatype City {`)
-}
-
-func TestDatatype13(t *testing.T) {
-	commonThing(t, `datatype City`)
-}
-
-func TestDatatype14(t *testing.T) {
-	input := `
-		datatype City {
-			string name }
-		print a.
-	`
-	commonThing(t, input)
-}
-
-func TestDatatype15(t *testing.T) {
-	input := `
-		datatype City {
-			string name
-}
-	`
-	commonThing(t, input)
-}
-
-func TestDatatype16(t *testing.T) {
-	input := `
-		datatype City { 
-			string name
-			int founded_in
-			bool is_beautiful
-}
-	print "something".
-	`
-	commonThing(t, input)
-}
-
-func TestGeneral1(t *testing.T) {
-	input := `
-		datatype X {
-			int y
-			string z
-			bool x
-		}
-		return true.
-		int i = 0.
-		loop true {
-			string y = "y".
-		}
-		block
-			int n = 0.
-		end
+;		block 
+;			Stdout::println("Hey").
+;			print_it(1416).
+;	block
+;	end
+	block "Hey". end
 `
-	commonThing(t, input)
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }
 
-func TestPrefixExpr1(t *testing.T) {
-	input := `(+ 2 2)`
-	commonThing(t, input)
-}
-
-func TestPrefixExpr2(t *testing.T) {
-	input := `(+)`
-	commonThing(t, input)
-}
-
-func TestPrefixExpr3(t *testing.T) {
-	input := `(+ 2 datatype)`
-	commonThing(t, input)
-}
-
-func TestPrefixExpr4(t *testing.T) {
-	input := `(+ 2 `
-	commonThing(t, input)
-}
-
-func TestPrefixExpr5(t *testing.T) {
-	input := `(+ 2 2`
-	commonThing(t, input)
-}
-
-func TestPrefixExpr6(t *testing.T) {
+// TODO TestPrefExpr1
+func TestPrefExpr1(t *testing.T) {
 	input := `
-		(* 3 (/ 6 2))
+		;(+ 1 4).								; 5
+		(+ (* Int::from_string("5") 5) 2). 		; 27
+		;(' ["Hey", "Hello"] 0).				; "Hey"
 	`
-	commonThing(t, input)
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }
 
-func TestPrefixExpr7(t *testing.T) {
+func TestRA1(t *testing.T) {
 	input := `
-		(not
-			(and true true)
-			   2
-		)
+		name = "Hey".
+		age = 51.
+		u = "User".
 	`
-	commonThing(t, input)
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }
 
-func TestPrefixExpr8(t *testing.T) {
-	input := `(not 2 2)`
-	commonThing(t, input)
-}
-
-func TestParseNot1(t *testing.T) {
-	input := `(not a)`
-	commonThing(t, input)
-}
-
-func TestParseNot2(t *testing.T) {
-	input := `(not a`
-	commonThing(t, input)
-}
-
-func TestParseNot3(t *testing.T) {
-	input := `(not a b c)`
-	commonThing(t, input)
-}
-
-func TestParseNot4(t *testing.T) {
-	input := `(not fun)`
-	commonThing(t, input)
-}
-
-func TestParseNot5(t *testing.T) {
-	input := `(
-		not true
-		)`
-	commonThing(t, input)
-}
-
-func TestParsePref1(t *testing.T) {
+func TestRA2(t *testing.T) {
 	input := `
-		(+ 2 2)
+		;age =.
+		;name = "Hey"
+		;u = 
+		a=    "716".
 	`
-	commonThing(t, input)
-}
-
-func TestParsePref2(t *testing.T) {
-	input := `
-		(/ 2 2
-	`
-	commonThing(t, input)
-}
-
-func TestParsePref3(t *testing.T) {
-	input := `
-		(/) 6
-	`
-	commonThing(t, input)
-}
-
-func TestParsePref4(t *testing.T) {
-	input := `
-		(^ f b) 5
-	`
-	commonThing(t, input)
-}
-func TestParsePref5(t *testing.T) {
-	input := `
-		(lte 5 5)
-	`
-	commonThing(t, input)
-}
-
-func TestParsePref6(t *testing.T) {
-	input := `
-		(gte 5 5 6)
-	`
-	commonThing(t, input)
-}
-
-func TestParsePref7(t *testing.T) {
-	input := `
-		(gte datatype)
-	`
-	commonThing(t, input)
-}
-
-func TestParserDotDot(t *testing.T) {
-	input := `... block end`
-	commonThing(t, input)
-}
-
-func TestParserErroneous1(t *testing.T) {
-	input := `
-		garbage and here it is
-	`
-	commonThing(t, input)
-}
-
-func TestFC1(t *testing.T) {
-	input := `
-		hello()
-	`
-	commonThing(t, input)
-}
-
-func TestFC2(t *testing.T) {
-	input := `
-		hello  (world)
-	`
-	commonThing(t, input)
-}
-
-func TestFC3(t *testing.T) {
-	input := `
-		hello(world, people, wow)
-	`
-	commonThing(t, input)
-}
-
-func TestFCFromNS1(t *testing.T) {
-	input := `
-		Stdout::println("Hello world")
-	`
-	commonThing(t, input)
-}
-
-func TestFCFromNS2(t *testing.T) {
-	input := `
-		Stdin   ::   input("Hello world")
-	`
-	commonThing(t, input)
-}
-
-func TestFCFromNS3(t *testing.T) {
-	input := `
-		Stdin   ::input "Hello world")
-	`
-	commonThing(t, input)
-}
-
-func TestListLit1(t *testing.T) {
-	input := `
-		[  "hello"   , 1,   true, wow
-		]
-	`
-	commonThing(t, input)
-}
-
-func TestListLit2(t *testing.T) {
-	input := `
-		[1]
-	`
-	commonThing(t, input)
-}
-
-func TestListLit3(t *testing.T) {
-	input := `
-		[]
-	`
-	commonThing(t, input)
-}
-
-func TestListLit4(t *testing.T) {
-	input := `
-		[
-	`
-	commonThing(t, input)
-}
-
-func TestListLit5(t *testing.T) {
-	input := `
-		[ "hey" 
-	`
-	commonThing(t, input)
-}
-
-func TestListLit6(t *testing.T) {
-	input := `
-		[ "hey" true ]
-	`
-	commonThing(t, input)
-}
-
-func TestListDecl1(t *testing.T) {
-	input := `
-		listof int nx = [1, 12, 123, 1234].
-	`
-	commonThing(t, input)
-}
-
-func TestListDecl2(t *testing.T) {
-	input := `
-		listof string names=[].
-	`
-	commonThing(t, input)
-}
-
-func TestListDecl3(t *testing.T) {
-	input := `
-		listof string names=[.
-	`
-	commonThing(t, input)
-}
-
-func TestListDecl4(t *testing.T) {
-	input := `
-		listof string names=]
-	`
-	commonThing(t, input)
-}
-
-func TestOp1(t *testing.T) {
-	input := `
-		(lte y List::length(names))
-		(' names x)
-	`
-	commonThing(t, input)
-}
-
-func TestGeneral2(t *testing.T) {
-	input := `
-		Stdout::println("Hello world")
-		datatype User {
-			string name
-		}
-		block
-			int x = 5.
-		end
-		int x = 0.
-		listof string names = ["Jennifer", "Hasan", "Jack"].
-		loop (lte x List::length(names)) {
-			Stdout::print(x)
-			Stdout::println((' names x))
-			x = x + 1.
-		} 
-	`
-	commonThing(t, input)
-	//l := lexer.New(input)
-	//p := New(l)
-
-	//program := p.Parse()
-	//ast.Print(os.Stdout, program)
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
 }

@@ -5,7 +5,6 @@ type Type int
 const (
 	EOF Type = iota
 	ILLEGAL
-	WHITESPACE
 	NEWLINE
 	IDENT
 	INT      // a literal int
@@ -51,7 +50,7 @@ const (
 
 func (t Type) String() string {
 	tt := map[Type]string{
-		EOF: "EOF", ILLEGAL: "ILLEGAL", WHITESPACE: "WHITESPACE",
+		EOF: "EOF", ILLEGAL: "ILLEGAL",
 		IDENT: "IDENTIFIER", INT: "INTEGER", STRING: "STRING", BOOL: "BOOLEAN",
 		DATATYPE: "DATATYPE", FUN: "FUN",
 		BLOCK: "BLOCK", END: "END", IF: "IF", ELSEIF: "ELSEIF", ELSE: "ELSE",
