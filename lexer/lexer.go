@@ -27,6 +27,7 @@ const (
 	stateLexIdentKw
 	stateLexSymbol   // lexing symbols like {, ., ), etc.
 	stateLexOperator // lexing pseudo-functions (e.g. @strconcat)
+	stateLexNewline  // lex \n
 )
 
 type lexFn func(*Lexer) token.Token
@@ -45,11 +46,12 @@ type Lexer struct {
 
 func New(input string) *Lexer {
 	var lexFns = map[state]lexFn{
-		stateLexWs:      lexWs,
+		//stateLexWs:      lexWs,
 		stateLexInt:     lexInt,
 		stateLexString:  lexString,
 		stateLexIdentKw: lexIdentOrKw,
 		stateLexSymbol:  lexSymbol,
+		stateLexNewline: lexNewline,
 	}
 	if len(input) == 0 {
 		panic("lexer.New: empty input string")
@@ -107,6 +109,10 @@ func isDigit(ch rune) bool {
 }
 
 func isWhitespace(ch rune) bool {
+	if ch == '\n' {
+		// this rune will be lexed as a token.NEWLINE.
+		return false
+	}
 	return unicode.IsSpace(ch)
 }
 
@@ -129,28 +135,11 @@ func is(char char, ch rune) bool {
 	return byte(ch) == byte(char)
 }
 
-func lexWs(l *Lexer) token.Token {
-	start := l.pointer
-	line := l.line
-	var lastChar rune
-	for isWhitespace(l.ch) {
-		if l.hasReachedEOF {
-			// next advance will set l.ch to eof.
-			lastChar = l.ch
-		}
-		l.advance()
-	}
-	end := l.pointer
-	if l.hasReachedEOF {
-		// if the last character is not a whitespace, don't pick it up
-		if isWhitespace(lastChar) {
-			end++
-		}
-	}
-	lit := string(l.src[start:end])
-	// set state to stateStart, to determine the next lexFn in *(Lexer).Next.
+func lexNewline(l *Lexer) token.Token {
+	n := token.New(token.NEWLINE, "\\n", l.line, l.col)
+	l.advance()
 	l.state = stateStart
-	return token.New(token.WHITESPACE, lit, line, start)
+	return n
 }
 
 func lexInt(l *Lexer) token.Token {
@@ -234,6 +223,13 @@ func ignoreComment(l *Lexer) {
 	l.state = stateStart
 }
 
+func ignoreWhitespace(l *Lexer) {
+	for isWhitespace(l.ch) {
+		l.advance()
+	}
+	l.state = stateStart
+}
+
 func lexIdentOrKw(l *Lexer) token.Token {
 	var kw = map[string]token.Type{
 		"datatype": token.DATATYPE, "fun": token.FUN,
@@ -290,15 +286,16 @@ func lexSymbol(l *Lexer) token.Token {
 	}
 	start := l.col
 	if l.ch == '-' {
-		oldLit := string(l.ch)
+		lit := string(l.ch)
 		line, col := l.line, l.col
 		l.advance()
-		if l.peek() == '>' {
+		if l.ch == '>' {
+			lit += string(l.ch)
 			l.advance()
 			l.state = stateStart
-			return token.New(token.ARROW, "->", l.line, start)
+			return token.New(token.ARROW, lit, line, start)
 		}
-		return token.New(token.MINUS, oldLit, line, col)
+		return token.New(token.MINUS, lit, line, col)
 	}
 	if l.ch == ':' {
 		lit := string(l.ch)
@@ -335,9 +332,13 @@ func (l *Lexer) Next() token.Token {
 			return token.New(token.EOF, "<<<EOF>>>", l.line, l.col)
 		}
 		if isWhitespace(l.ch) {
-			l.state = stateLexWs
+			ignoreWhitespace(l)
+			return l.Next()
+		} else if is(newline, l.ch) {
+			l.state = stateLexNewline
 		} else if isDigit(l.ch) || l.ch == '-' {
 			if l.ch == '-' && !(isDigit(l.peek())) {
+				fmt.Println("must be a symbol")
 				// this must be a symbol
 				l.state = stateLexSymbol
 				return l.Next()
