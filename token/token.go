@@ -109,6 +109,8 @@ func PrefixExprName(t Type) string {
 		return "lte"
 	case GTE:
 		return "gte"
+	case SINGLE_QUOTE:
+		return "'"
 	}
 	return "UNKNOWN"
 }
