@@ -102,7 +102,8 @@ func (p *Parser) skip() {
 	kwm := map[token.Type]bool{
 		token.INTKW: true, token.STRINGKW: true, token.BOOLKW: true, token.DATATYPE: true,
 		token.FUN: true, token.BLOCK: true, token.END: true, token.IF: true, token.ELSEIF: true,
-		token.ELSE: true, token.LOOP: true, token.RETURN: true, token.LISTOF: true,
+		token.ELSE: true, token.LOOP: true, token.RETURN: true, token.LISTOF: true, token.CONTINUE: true,
+		token.BREAK: true,
 	}
 	/*
 		if we are already on a token that is in kwm, that means we wanted to check the peek token.
@@ -259,12 +260,20 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parseReturnStatement(); stmt != nil {
 			return stmt
 		}
+	case token.BREAK:
+		if stmt := p.parseBreakStatement(); stmt != nil {
+			return stmt
+		}
+	case token.CONTINUE:
+		if stmt := p.parseContinueStatement(); stmt != nil {
+			return stmt
+		}
 	case token.LOOP:
 		if stmt := p.parseLoopStatement(); stmt != nil {
 			return stmt
 		}
 	case token.DATATYPE:
-		if stmt := p.parseDatatypeDeclaration(); stmt != nil {
+		if stmt := p.parseDatatypeDeclarationStatement(); stmt != nil {
 			return stmt
 		}
 	case token.EOF:
@@ -486,6 +495,28 @@ noval:
 	return r
 }
 
+func (p *Parser) parseBreakStatement() *ast.BreakStatement {
+	// current token is token.BREAK
+	b := &ast.BreakStatement{Tok: p.tok}
+	if p.errif(!(p.peekis(token.DOT)), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' at the end of break statement where a dot was expected", p.peek().Literal)) {
+		return nil
+	}
+	p.dmove()
+	return b
+}
+
+func (p *Parser) parseContinueStatement() *ast.ContinueStatement {
+	// current token is token.CONTINUE
+	c := &ast.ContinueStatement{Tok: p.tok}
+	if p.errif(!(p.peekis(token.DOT)), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' at the end of continue statement where a dot was expected", p.peek().Literal)) {
+		return nil
+	}
+	p.dmove()
+	return c
+}
+
 func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	l := &ast.LoopStatement{Tok: p.tok}
 	line, col := p.peek().Line, p.peek().Col
@@ -548,7 +579,7 @@ func (p *Parser) parseDatatypeField() *ast.DatatypeField {
 	return f
 }
 
-func (p *Parser) parseDatatypeDeclaration() *ast.DatatypeDeclaration {
+func (p *Parser) parseDatatypeDeclarationStatement() *ast.DatatypeDeclaration {
 	d := &ast.DatatypeDeclaration{Tok: p.tok}
 	if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
 		p.errorf(peek.Line, peek.Col, "datatype without a name")

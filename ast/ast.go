@@ -131,6 +131,24 @@ func (r ReturnStatement) String() string {
 }
 func (ReturnStatement) statement() {}
 
+type BreakStatement struct {
+	Tok token.Token // token.BREAK
+}
+
+func (b BreakStatement) String() string {
+	return b.Tok.Literal + "."
+}
+func (BreakStatement) statement() {}
+
+type ContinueStatement struct {
+	Tok token.Token
+}
+
+func (c ContinueStatement) String() string {
+	return c.Tok.Literal + "."
+}
+func (ContinueStatement) statement() {}
+
 type LoopStatement struct {
 	Tok   token.Token
 	Cond  Expr
