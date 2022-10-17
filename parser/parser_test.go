@@ -221,15 +221,36 @@ func TestBlock2(t *testing.T) {
 	print_errs(t, errs)
 }
 
-// TODO TestPrefExpr1
 func TestPrefExpr1(t *testing.T) {
 	input := `
-		;(+ 1 4).								; 5
+		(+ 1 4).								; 5
 		(+ (* Int::from_string("5") 5) 2). 		; 27
-		;(' ["Hey", "Hello"] 0).				; "Hey"
+		(' ["Hey", "Hello"] 0).					; "Hey"									
+
+
+	(* 2 Int::from_string(String::from_int(
+		(+ 3 5 18925
+			Int::from_string("-1516")
+		)
+	))). 										; 34834
+
+	Stdout::println((* 4 Math::pow(2, 2))).		; 16
 	`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestPrefExpr2(t *testing.T) {
+	input := `
+		;(m 4 5 67).
+		;().
+		;(+ 5 6 7 8 9
+		;(' [0, 1, 2, 3, 4] 2)
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 1)
 	print_stmts(t, program)
 	print_errs(t, errs)
 }

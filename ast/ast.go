@@ -208,7 +208,7 @@ func (d DatatypeDeclaration) String() string {
 func (DatatypeDeclaration) statement() {}
 
 type PrefixExpr struct {
-	Tok  token.Token
+	Tok  token.Token // operator (e.g. +, -, ', and, ...)
 	Args []Expr
 }
 

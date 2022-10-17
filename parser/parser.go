@@ -70,6 +70,14 @@ func (p *Parser) dmove() {
 	p.move()
 }
 
+func (p *Parser) unmove() {
+	if p.ptr < 1 {
+		return
+	}
+	p.ptr--
+	p.tok = p.tokens[p.ptr]
+}
+
 func (p *Parser) moveif(cond bool) {
 	if cond {
 		p.move()
@@ -110,6 +118,7 @@ func (p *Parser) skip() {
 		we should move here.
 
 		example case :
+
 			listof { x = [].
 
 			in list decl. parse fn :
@@ -160,6 +169,29 @@ func (p *Parser) curis(typ token.Type) bool {
 
 func (p *Parser) peekis(typ token.Type) bool {
 	return p.peek().Type == typ
+}
+
+// typ is acceptable for parse expr
+func isExpr(typ token.Type) bool {
+	// these are EXPECTED token types for parseExpr.
+	// these can be expressions.
+	//
+	// other tokens cannot be exprs.
+	acceptableTokens := map[token.Type]bool{
+		token.STRING: true, token.INT: true, token.BOOL: true, token.IDENT: true, token.OPENING_PAREN: true, token.OPENING_SQUARE_BRACKET: true,
+	}
+	_, ok := acceptableTokens[typ]
+	return ok
+}
+
+func isOperator(tok token.Token) bool {
+	lit := tok.Literal
+	opm := map[string]bool{
+		"+": true, "-": true, "*": true, "/": true, "'": true, "=": true, "lt": true, "lte": true,
+		"gt": true, "gte": true, "and": true, "or": true, "not": true,
+	}
+	ok := opm[lit]
+	return ok
 }
 
 func (p *Parser) Parse() *ast.Program {
@@ -243,10 +275,6 @@ func (p *Parser) parseStatement() ast.Statement {
 			if stmt := p.parseFunctionCallFromNamespace(identTok, true); stmt != nil {
 				return stmt
 			}
-		case token.IDENT:
-			if stmt := p.parseVariableDecl(); stmt != nil {
-				return stmt
-			}
 		}
 		// identifier
 		if stmt := p.parseIdentifier(true); stmt != nil {
@@ -282,38 +310,9 @@ func (p *Parser) parseStatement() ast.Statement {
 		p.errorf(p.tok.Line, p.tok.Col, "unexpected token '%s'", p.tok.Literal)
 		tokTyp := p.tok.Type
 		// skip token of same type to avoid giving repetitive error messages
-		for {
-			if p.tok.Type != tokTyp {
-				break
-			}
-			p.move()
-		}
+		p.eat(tokTyp)
 	}
 	return nil
-}
-
-/*
-func (p *Parser) parseExprStmt() ast.ExprStmt {
-	// expression statements need a dot at the end.
-	//
-	// for example,
-	// 		Stdout::println("Hello world").
-	//		Stdout::println(String::from_int(6)).
-	// println calls are expr statements, whereas String::from_int call is an expr.
-
-}
-*/
-// typ is acceptable for parse expr
-func isExpr(typ token.Type) bool {
-	// these are EXPECTED token types for parseExpr.
-	// these can be expressions.
-	//
-	// other tokens cannot be exprs.
-	acceptableTokens := map[token.Type]bool{
-		token.STRING: true, token.INT: true, token.BOOL: true, token.IDENT: true, token.OPENING_PAREN: true,
-	}
-	_, ok := acceptableTokens[typ]
-	return ok
 }
 
 func (p *Parser) parseStringLiteral(isStmt bool) *ast.StringLiteral {
@@ -384,6 +383,13 @@ func (p *Parser) parseExpr() ast.Expr {
 	case token.BOOL:
 		return p.parseBoolLiteral(false)
 	case token.IDENT:
+		identTok := p.tok
+		switch p.peek().Type {
+		case token.OPENING_PAREN:
+			return p.parseFunctionCall(identTok, false)
+		case token.DOUBLE_COLON:
+			return p.parseFunctionCallFromNamespace(identTok, false)
+		}
 		return p.parseIdentifier(false)
 	case token.OPENING_PAREN:
 		return p.parseOperator(false)
@@ -634,48 +640,48 @@ func (p *Parser) parseDatatypeDeclarationStatement() *ast.DatatypeDeclaration {
 	return d
 }
 
-// TODO BUGGY vvv
-
-// > rewrite this
-
 func (p *Parser) parseOperator(isStmt bool) *ast.PrefixExpr {
 	// current token is token.OPENING_PAREN
 	pe := &ast.PrefixExpr{}
-	p.move()
-	if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
-		"unexpected end-of-file: missing ')' in prefix expression")) {
+	if p.errif(p.peekis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+		"unexpected end-of-file: expected an operator after '(', in prefix expression")) {
 		return nil
 	}
-	if p.errif(p.curis(token.CLOSING_PAREN), newErr(p.tok.Line, p.tok.Col,
+	if p.errif(p.peekis(token.CLOSING_PAREN), newErr(p.tok.Line, p.tok.Col,
 		"missing operator in prefix expression")) {
 		return nil
 	}
-	pe.Tok = p.tok
-	p.move()
-	fmt.Println(p.tok)
-	for p.curnot(token.CLOSING_PAREN) && p.curnot(token.EOF) {
-		// call parseStatement, instead of parseExpr.
-		// because we are dealing with p.tok. (parseExpr looks to p.peek())
-		// I am lazy to restructure the whole method.
-		if arg := p.parseExpr(); arg != nil {
-			pe.Args = append(pe.Args, arg)
-		}
-		fmt.Println("p.tt: ", p.tok)
-		if p.errif(!(isExpr(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s' in '%s' expression",
-			p.tok.Literal, pe.Tok.Literal)) {
-			return nil
-		}
-	}
-	if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
-		"unexpected end-of-file: missing ')' at the end of prefix expression")) {
+	if peek := p.peek(); p.errif(!(isOperator(peek)), newErr(peek.Line, peek.Col,
+		"unknown operator '%s' in prefix expression", peek.Literal)) {
 		return nil
 	}
-	// no need for 'p.tok.Type == token.CLOSING_PAREN'
-	p.move() // skip )
+	p.move()
+	pe.Tok = p.tok // set operator
+	p.move()       // skip operator
+	for p.curnot(token.CLOSING_PAREN) {
+		p.moveif(p.curis(token.NEWLINE))
+		if p.curis(token.CLOSING_PAREN) {
+			break
+		}
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: expected a closing ')'")) {
+			return nil
+		}
+		if p.errif(!(isExpr(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+			"unexpected token '%s' as argument to operator '%s'. it expects expressions",
+			p.tok.Literal, token.PrefixExprName(pe.Tok.Type))) {
+			return nil
+		}
+		p.unmove()
+		if el := p.parseExpr(); el != nil {
+			pe.Args = append(pe.Args, el)
+		}
+	}
+	// current token is token.CLOSING_PAREN
+	p.move()
 	if isStmt {
 		if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal)) {
+			"unexpected token '%s' at the end of prefix expression, where a dot was expected", p.tok.Literal)) {
 			return nil
 		}
 		p.move()
@@ -683,59 +689,68 @@ func (p *Parser) parseOperator(isStmt bool) *ast.PrefixExpr {
 	return pe
 }
 
-func (p *Parser) parseFunctionCall(ident token.Token, isStmt bool) *ast.FunctionCall {
-	fc := &ast.FunctionCall{Tok: ident, Ident: &ast.Identifier{Tok: ident}}
-	// peek token is (
-	p.move()
-	if p.errif(p.curnot(token.OPENING_PAREN), newErr(p.tok.Line, p.tok.Col,
-		"unexpected token '%s' in function call expression. expected a '('",
-		p.tok.Literal)) {
-		return nil
+// TODO FIX vvv
+
+// parse comma separated arguments.
+// typ is either list, or call.
+// list is for list literals. ( closing=] )
+// call is for function calls ( closing=) )
+func (p *Parser) parseArgs(typ string) []ast.Expr {
+	res := []ast.Expr{}
+	if typ != "call" && typ != "list" {
+		panic("parseArgs: invalid typ " + typ)
 	}
-	if p.peekis(token.CLOSING_PAREN) {
-		p.dmove()
-		return fc
+	var (
+		closing = token.CLOSING_SQUARE_BRACKET
+		exprTyp = "list"
+	)
+	if typ == "call" {
+		closing = token.CLOSING_PAREN
+		exprTyp = "function call"
 	}
-	if p.errif(!(isExpr(p.peek().Type)), newErr(p.tok.Line, p.tok.Col,
-		"unexpected token '%s' as argument value to function call",
-		p.peek().Literal)) {
-		return nil
+	// current token is either '[', or '('.
+	p.moveif(p.peekis(token.NEWLINE))
+	if arg := p.parseExpr(); arg != nil {
+		res = append(res, arg)
 	}
-	arg := p.parseExpr()
-	if arg != nil {
-		fc.Args = append(fc.Args, arg)
-	}
-	// one argument
+	p.moveif(p.curis(token.NEWLINE))
 	if p.curis(token.CLOSING_PAREN) {
-		goto end
+		p.move()
+		return res
 	}
-	for {
+	if peek := p.peek(); p.errif(!(isExpr(peek.Type)), newErr(peek.Line, peek.Col,
+		"invalid token '%s' as argument to %s expression", peek.Literal, exprTyp)) {
+		return nil
+	}
+	for p.curis(token.COMMA) {
+		p.moveif(p.peekis(token.NEWLINE))
 		if p.curis(token.CLOSING_PAREN) {
-			goto end
+			p.move()
+			return res
 		}
-		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
-			"unexpected end-of-file: unclosed function call expression")) {
-			return nil
-		}
-		if p.errif(p.curnot(token.COMMA), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token: expected comma between arguments")) {
-			return nil
-		}
-		p.move() // skip comma
-		if p.errif(!(isExpr(p.peek().Type)), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s' as argument value to function call",
-			p.peek().Literal)) {
+		if peek := p.peek(); p.errif(!(isExpr(peek.Type)), newErr(peek.Line, peek.Col,
+			"invalid token '%s' as argument to %s expression", peek.Literal, exprTyp)) {
 			return nil
 		}
 		if arg := p.parseExpr(); arg != nil {
-			fc.Args = append(fc.Args, arg)
+			res = append(res, arg)
 		}
 	}
-end:
-	p.move() // skip )
+	if p.errif(p.curnot(closing), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' in %s expression, where a '%s' was expected", p.tok.Literal, exprTyp, closing.String())) {
+		return nil
+	}
+	return res
+}
+
+func (p *Parser) parseFunctionCall(ident token.Token, isStmt bool) *ast.FunctionCall {
+	// current token is token.IDENT
+	fc := &ast.FunctionCall{Tok: p.tok, Ident: &ast.Identifier{Tok: p.tok}}
+	p.move()
+	fc.Args = p.parseArgs("call")
 	if isStmt {
 		if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal)) {
+			"unexpected token '%s' at the end of prefix expression, where a dot was expected", p.tok.Literal)) {
 			return nil
 		}
 		p.move()
@@ -760,6 +775,7 @@ func (p *Parser) parseFunctionCallFromNamespace(namespaceTok token.Token, isStmt
 	}
 	return fcfn
 }
+
 func (p *Parser) parseListVariableDecl() *ast.ListVariableDecl {
 	// current token is 'listof'
 	l := &ast.ListVariableDecl{Tok: p.tok}
