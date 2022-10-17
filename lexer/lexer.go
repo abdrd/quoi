@@ -237,6 +237,7 @@ func lexIdentOrKw(l *Lexer) token.Token {
 		"end": token.END, "if": token.IF, "elseif": token.ELSEIF, "else": token.ELSE,
 		"loop": token.LOOP, "return": token.RETURN, "and": token.AND, "or": token.OR, "not": token.NOT,
 		"lt": token.LT, "lte": token.LTE, "gt": token.GT, "gte": token.GTE, "listof": token.LISTOF,
+		"break": token.BREAK, "continue": token.CONTINUE,
 	}
 	start := l.pointer
 	for canBeAnIdentifierName(l.ch) || isDigit(l.ch) {
