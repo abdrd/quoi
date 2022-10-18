@@ -8,6 +8,8 @@ import (
 	"quoi/token"
 )
 
+// TODO: Don't give redundant error messages.
+
 type Err struct {
 	Msg          string
 	Column, Line uint
@@ -268,7 +270,7 @@ func (p *Parser) parseStatement() ast.Statement {
 				return stmt
 			}
 		case token.OPENING_PAREN:
-			if stmt := p.parseFunctionCall(identTok, true); stmt != nil {
+			if stmt := p.parseFunctionCall(identTok, true, ""); stmt != nil {
 				return stmt
 			}
 		case token.DOUBLE_COLON:
@@ -386,7 +388,7 @@ func (p *Parser) parseExpr() ast.Expr {
 		identTok := p.tok
 		switch p.peek().Type {
 		case token.OPENING_PAREN:
-			return p.parseFunctionCall(identTok, false)
+			return p.parseFunctionCall(identTok, false, "")
 		case token.DOUBLE_COLON:
 			return p.parseFunctionCallFromNamespace(identTok, false)
 		}
@@ -689,68 +691,55 @@ func (p *Parser) parseOperator(isStmt bool) *ast.PrefixExpr {
 	return pe
 }
 
-// TODO FIX vvv
-
-// parse comma separated arguments.
-// typ is either list, or call.
-// list is for list literals. ( closing=] )
-// call is for function calls ( closing=) )
-func (p *Parser) parseArgs(typ string) []ast.Expr {
-	res := []ast.Expr{}
-	if typ != "call" && typ != "list" {
-		panic("parseArgs: invalid typ " + typ)
+// namespace argument is used in errors.
+// e.g.
+// report "... in function call 'Math::pow', instead of 'pow'"
+func (p *Parser) parseFunctionCall(ident token.Token, isStmt bool, namespace string) *ast.FunctionCall {
+	// current token is token.IDENT
+	fc := &ast.FunctionCall{Tok: p.tok, Ident: &ast.Identifier{Tok: p.tok}}
+	var fnName = fc.Ident.String()
+	if len(namespace) > 0 {
+		fnName = namespace + "::" + fnName
 	}
-	var (
-		closing = token.CLOSING_SQUARE_BRACKET
-		exprTyp = "list"
-	)
-	if typ == "call" {
-		closing = token.CLOSING_PAREN
-		exprTyp = "function call"
-	}
-	// current token is either '[', or '('.
-	p.moveif(p.peekis(token.NEWLINE))
-	if arg := p.parseExpr(); arg != nil {
-		res = append(res, arg)
-	}
-	p.moveif(p.curis(token.NEWLINE))
-	if p.curis(token.CLOSING_PAREN) {
-		p.move()
-		return res
-	}
-	if peek := p.peek(); p.errif(!(isExpr(peek.Type)), newErr(peek.Line, peek.Col,
-		"invalid token '%s' as argument to %s expression", peek.Literal, exprTyp)) {
+	p.move()
+	if p.errif(p.curnot(token.OPENING_PAREN), newErr(p.tok.Line, p.tok.Col,
+		"missing '(' in function call '%s'", fnName)) {
 		return nil
 	}
-	for p.curis(token.COMMA) {
+	if p.peekis(token.CLOSING_PAREN) {
+		p.dmove()
+		goto end
+	}
+	p.moveif(p.peekis(token.NEWLINE))
+	for p.curnot(token.CLOSING_PAREN) {
 		p.moveif(p.peekis(token.NEWLINE))
-		if p.curis(token.CLOSING_PAREN) {
-			p.move()
-			return res
+		if p.peekis(token.CLOSING_PAREN) {
+			p.dmove()
+			goto end
 		}
 		if peek := p.peek(); p.errif(!(isExpr(peek.Type)), newErr(peek.Line, peek.Col,
-			"invalid token '%s' as argument to %s expression", peek.Literal, exprTyp)) {
+			"unexpected token '%s' as argument to function call '%s'. it expects expressions", peek.Literal, fnName)) {
 			return nil
 		}
 		if arg := p.parseExpr(); arg != nil {
-			res = append(res, arg)
+			fc.Args = append(fc.Args, arg)
+		}
+		if p.errif(p.curis(token.COMMA) && p.peekis(token.CLOSING_PAREN), newErr(p.tok.Line, p.tok.Col,
+			"redundant comma in function call '%s'", fnName)) {
+			return nil
+		}
+		if p.curis(token.CLOSING_PAREN) {
+			p.move()
+			goto end
+		}
+		if p.errif(p.curnot(token.COMMA), newErr(p.tok.Line, p.tok.Col, "missing comma in function call '%s'", fnName)) {
+			return nil
 		}
 	}
-	if p.errif(p.curnot(closing), newErr(p.tok.Line, p.tok.Col,
-		"unexpected token '%s' in %s expression, where a '%s' was expected", p.tok.Literal, exprTyp, closing.String())) {
-		return nil
-	}
-	return res
-}
-
-func (p *Parser) parseFunctionCall(ident token.Token, isStmt bool) *ast.FunctionCall {
-	// current token is token.IDENT
-	fc := &ast.FunctionCall{Tok: p.tok, Ident: &ast.Identifier{Tok: p.tok}}
-	p.move()
-	fc.Args = p.parseArgs("call")
+end:
 	if isStmt {
 		if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s' at the end of prefix expression, where a dot was expected", p.tok.Literal)) {
+			"unexpected token '%s' at the end of function call expression statement '%s', where a dot was expected", p.tok.Literal, fnName)) {
 			return nil
 		}
 		p.move()
@@ -770,7 +759,7 @@ func (p *Parser) parseFunctionCallFromNamespace(namespaceTok token.Token, isStmt
 		p.move()
 		return nil
 	}
-	if fn := p.parseFunctionCall(p.tok, isStmt); fn != nil {
+	if fn := p.parseFunctionCall(p.tok, isStmt, fcfn.Namespace.Tok.Literal); fn != nil {
 		fcfn.Function = fn
 	}
 	return fcfn

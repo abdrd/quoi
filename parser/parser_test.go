@@ -231,7 +231,7 @@ func TestPrefExpr1(t *testing.T) {
 	(* 2 Int::from_string(String::from_int(
 		(+ 3 5 18925
 			Int::from_string("-1516")
-		)
+		),
 	))). 										; 34834
 
 	Stdout::println((* 4 Math::pow(2, 2))).		; 16
@@ -288,6 +288,37 @@ func TestBreakAndReturn(t *testing.T) {
 			continue.
 			break.
 		end
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestFC1(t *testing.T) {
+	input := `
+		string_concat("Hello", "World").
+		Os::read_file("hello.txt").
+		Math::pow(
+			2, 2,
+		).
+		Stdout::println(
+			1, 2,  3,
+			5, "Hello", "Yay",
+		).
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestFC2(t *testing.T) {
+	input := `
+		;string_concat("Hello" "World")
+		;Os::read_file ("hello.txt" ).
+		;Math::pow(2, 2,).
+		;Math::pow(2, 2)
 	`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
