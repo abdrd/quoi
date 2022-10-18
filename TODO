@@ -1,6 +1,4 @@
 
 parser/parser.go
+	TODO Don't give redundant error messages.
 	TODO make this memory efficient
-	TODO BUGGY vvv
-parser/parser_test.go
-	TODO TestPrefExpr1

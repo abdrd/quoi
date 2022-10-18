@@ -8,7 +8,7 @@ import (
 	"quoi/token"
 )
 
-// TODO: Don't give redundant error messages.
+// TODO Don't give redundant error messages.
 
 type Err struct {
 	Msg          string
@@ -528,14 +528,13 @@ func (p *Parser) parseContinueStatement() *ast.ContinueStatement {
 func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	l := &ast.LoopStatement{Tok: p.tok}
 	line, col := p.peek().Line, p.peek().Col
-	if p.peekis(token.OPENING_CURLY) {
-		goto nocond
+	if p.errif(p.peekis(token.OPENING_CURLY), newErr(line, col, "missing condition in loop statement")) {
+		return nil
 	}
 	if p.errif(!(isExpr(p.peek().Type)), newErr(line, col,
 		"unexpected token '%s' in loop statement. loop statement condition must be an expression", p.peek().Literal)) {
 		return nil
 	}
-nocond:
 	l.Cond = p.parseExpr()
 	if p.errif(l.Cond == nil, newErr(line, col, "missing condition in loop statement")) {
 		return nil
@@ -544,13 +543,11 @@ nocond:
 		"unexpected token: expected an opening curly brace, got '%s'", p.tok.Type)) {
 		return nil
 	}
-	for {
+	p.move() // skip '{'
+	for p.curnot(token.CLOSING_CURLY) {
 		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
 			"unexpected end-of-file: unclosed loop statement")) {
 			return nil
-		}
-		if p.curis(token.CLOSING_CURLY) {
-			break
 		}
 		if stmt := p.parseStatement(); stmt != nil {
 			l.Stmts = append(l.Stmts, stmt)

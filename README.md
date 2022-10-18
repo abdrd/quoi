@@ -161,7 +161,8 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
 
 ##### Some notes about the semantics
 
-- Quoi is a procedural language.
+- PARADIGM
+
 - It is explicitly, and statically typed.
 - It does not allow function overloading.
 - Functions can only be declared globally. No function declarations in other functions' bodies, or in any other block (ifs, loops, arbitrary blocks, etc.). 
