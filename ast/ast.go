@@ -237,7 +237,7 @@ func (f FunctionCall) String() string {
 		putComma := i != len(f.Args)-1
 		res += v.String()
 		if putComma {
-			res += ","
+			res += ", "
 		}
 	}
 	res += ")"

@@ -231,7 +231,7 @@ func TestPrefExpr1(t *testing.T) {
 	(* 2 Int::from_string(String::from_int(
 		(+ 3 5 18925
 			Int::from_string("-1516")
-		)
+		),
 	))). 										; 34834
 
 	Stdout::println((* 4 Math::pow(2, 2))).		; 16
@@ -280,17 +280,95 @@ func TestRA2(t *testing.T) {
 	print_errs(t, errs)
 }
 
-func TestBreakAndReturn(t *testing.T) {
+func TestReturn1(t *testing.T) {
+	input := `
+		; return
+		; return.
+		; return .
+		; return 5
+		return Math::sqrt(64).
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestBreakAndContinue(t *testing.T) {
 	input := `
 		;break
 		;continue
 		block
 			continue.
 			break.
+
 		end
 	`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestFC1(t *testing.T) {
+	input := `
+		string_concat("Hello", "World").
+		Os::read_file("hello.txt").
+		Math::pow(
+			2, 2,
+		).
+		Stdout::println(
+			1, 2,  3,
+			5, "Hello", "Yay",
+		).
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestFC2(t *testing.T) {
+	input := `
+		;string_concat("Hello" "World")
+		;Os::read_file ("hello.txt" ).
+		;Math::pow(2, 2,).
+		;Math::pow(2, 2)
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestLoop1(t *testing.T) {
+	input := `
+		;loop true {}
+		;loop (lte 4 5) {
+		;	Stdout::println("4 is less than or equal to 5").
+		;}
+		;loop (and 
+		;	(not false) 
+		;	(lt -1 0)) {
+		;	Stdout::println("wow much complex").
+		;}
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestLoop2(t *testing.T) {
+	input := `
+		;loop {}
+		;loop true {
+		;loop true }
+		;loop true {{}
+		;loop fun {}
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 1)
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
