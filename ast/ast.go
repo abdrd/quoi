@@ -378,7 +378,7 @@ type FunctionReturnType struct {
 type FunctionDeclarationStatement struct {
 	Tok         token.Token // token.FUN
 	Name        *Identifier // function name
-	Args        []FunctionParameter
+	Params      []FunctionParameter
 	ReturnCount int // how many things does this return ?
 	ReturnTypes []FunctionReturnType
 	Stmts       []Statement
@@ -393,8 +393,8 @@ func (f FunctionDeclarationStatement) String() string {
 		res.WriteString("<nil_name>")
 	}
 	res.WriteByte('(')
-	for i, v := range f.Args {
-		putComma := i != len(f.Args)-1
+	for i, v := range f.Params {
+		putComma := i != len(f.Params)-1
 		res.WriteString(v.Tok.Literal)
 		res.WriteByte(' ')
 		res.WriteString(v.Name.String())

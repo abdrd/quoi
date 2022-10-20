@@ -939,6 +939,103 @@ func (p *Parser) parseElseStatement() *ast.ElseStatement {
 	return e
 }
 
+func (p *Parser) parseFunctionParams(fnName string) []ast.FunctionParameter {
+	// current token is on a type
+	var res []ast.FunctionParameter
+	for p.curnot(token.CLOSING_PAREN) {
+		fmt.Println("params: ", p.tok)
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: unclosed parameter list in function '%s'", fnName)) {
+			return nil
+		}
+		param := ast.FunctionParameter{Tok: p.tok}
+		p.move()
+		line, col := p.tok.Line, p.tok.Col
+		isStmt := false
+		param.Name = p.parseIdentifier(isStmt)
+		fmt.Println("param.Name=", param.Name)
+		if p.errif(param.Name == nil, newErr(line, col, "missing parameter name in parameter list of function '%s'", fnName)) {
+			return nil
+		}
+		p.moveif(p.curis(token.NEWLINE))
+		if p.errif(p.curnot(token.COMMA) && !(p.peekis(token.CLOSING_PAREN) && p.curnot(token.NEWLINE)),
+			newErr(p.tok.Line, p.tok.Col, "missing comma between parameters in function declaration '%s'", fnName)) {
+			return nil
+		}
+		if p.errif(p.curis(token.NEWLINE) && p.peekis(token.CLOSING_PAREN), newErr(p.tok.Line, p.tok.Col,
+			"invalid newline at the end of parameter list in function definition '%s'", fnName)) {
+			return nil
+		}
+		p.move() // skip ,
+		res = append(res, param)
+		fmt.Println("appended: ", param)
+		fmt.Println("after append: res = ", res)
+	}
+	return res
+}
+
+func (p *Parser) parseFunctionReturnTypes() (int, []ast.FunctionReturnType) {
+	// current token is '->'
+	return -1, []ast.FunctionReturnType{}
+}
+
 func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationStatement {
-	panic("FUNCTION DECLARATIONS NOT IMPLEMENTED")
+	/*
+		param : <type> <name>[, <param> | <name>, ...]
+		fun <name> ([<param>, ...]) [-> <type>[, <type>, ...]] {
+			<stmts>
+		}
+	*/
+	// current token is token.FUN
+	fds := &ast.FunctionDeclarationStatement{Tok: p.tok}
+	p.move()
+	line, col := p.tok.Line, p.tok.Col
+	isStmt := false
+	if name := p.parseIdentifier(isStmt); name != nil {
+		fds.Name = name
+	}
+	if p.errif(fds.Name == nil, newErr(line, col, "missing function name")) {
+		return nil
+	}
+	if p.errif(p.curnot(token.OPENING_PAREN), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s', where a '(' was expected in function declaration '%s'",
+		p.tok.Literal, fds.Name)) {
+		return nil
+	}
+	p.move() // either a type, or a )
+	if p.curis(token.CLOSING_PAREN) {
+		p.move()
+		goto noparam
+	}
+	if p.errif(p.curis(token.NEWLINE), newErr(p.tok.Line, p.tok.Col,
+		"illegal newline in parameter list of function declaration '%s'", fds.Name)) {
+		return nil
+	}
+	fds.Params = p.parseFunctionParams(fds.Name.String())
+	// current token is either ->, or {
+	// if it is '->', then that means, there is at least one return type.
+noparam:
+	if p.curis(token.ARROW) {
+		count, types := p.parseFunctionReturnTypes()
+		fds.ReturnCount = count
+		fds.ReturnTypes = types
+	}
+	// current token is '{'
+	if p.errif(p.curnot(token.OPENING_CURLY), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' in function '%s', where a '{' was expected as the beginning of body block",
+		p.tok.Literal, fds.Name)) {
+		return nil
+	}
+	p.move()
+	for p.curnot(token.CLOSING_CURLY) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: unclosed body of function '%s'", fds.Name)) {
+			return nil
+		}
+		if stmt := p.parseStatement(); stmt != nil {
+			fds.Stmts = append(fds.Stmts, stmt)
+		}
+	}
+	p.move() // skip '}'
+	return fds
 }
