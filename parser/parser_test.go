@@ -433,3 +433,19 @@ func TestIf5(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestParseFunParams1(t *testing.T) {
+	input := `
+		(int a, int b)
+	`
+	l := lexer.New(input)
+	p := New(l)
+	p.move()
+	p.move()
+	fmt.Println(p.tok)
+	params := p.parseFunctionParams("fake_fn")
+	fmt.Println(params)
+	for i, v := range params {
+		t.Logf("param#%d: (%s %s)\n", i, v.Tok.Literal, v.Name.String())
+	}
+}

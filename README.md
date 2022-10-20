@@ -102,7 +102,7 @@ fun greet(string name) {
     
 }
 
-fun some_func(int a, b) -> string, bool {
+fun some_func(int a, int b) -> string, bool {
 }
 ```
 
@@ -174,13 +174,13 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
     block 
         int day = 30.
         int age = 15.
-        print day.      ; prints 30
-                        ; if a global variable and a variable in a scope has the same name,
-                        ; and a (pseudo-)function references that name, then the function will
-                        ; use the one which is in the same block as it is. 
+        Stdout::println(day)      ; prints 30
+                                  ; if a global variable and a variable in a scope has the same name,
+                                  ; and a (pseudo-)function references that name, then the function will
+                                  ; use the one which is in the same block as it is. 
     end
-    print day.          ; prints 15
-    print age.          ; reference error
+    Stdout::println(day).         ; prints 15
+    Stdout::println(age).         ; reference error
     ```
 - Ability to compose different types to create a compound data type, using the ```datatype``` keyword.
 - There are no methods attached to a data type, but you can just create functions that take in any data type.
