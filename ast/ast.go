@@ -365,3 +365,56 @@ func (i IfStatement) String() string {
 	return res.String()
 }
 func (IfStatement) statement() {}
+
+type FunctionParameter struct {
+	Tok  token.Token // type of parameter (int, string, User, ...)
+	Name *Identifier // name of parameter
+}
+
+type FunctionReturnType struct {
+	Tok token.Token // actual type (token.INTKW, token.STRINGKW, token.IDENT, etc.)
+}
+
+type FunctionDeclarationStatement struct {
+	Tok         token.Token // token.FUN
+	Name        *Identifier // function name
+	Args        []FunctionParameter
+	ReturnCount int // how many things does this return ?
+	ReturnTypes []FunctionReturnType
+	Stmts       []Statement
+}
+
+func (f FunctionDeclarationStatement) String() string {
+	var res strings.Builder
+	res.WriteString("fun ")
+	if f.Name != nil {
+		res.WriteString(f.Name.String())
+	} else {
+		res.WriteString("<nil_name>")
+	}
+	res.WriteByte('(')
+	for i, v := range f.Args {
+		putComma := i != len(f.Args)-1
+		res.WriteString(v.Tok.Literal)
+		res.WriteByte(' ')
+		res.WriteString(v.Name.String())
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteString(") -> ")
+	for i, v := range f.ReturnTypes {
+		putComma := i != len(f.ReturnTypes)-1
+		res.WriteString(v.Tok.Literal)
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteString(" {")
+	for _, v := range f.Stmts {
+		res.WriteString(v.String())
+	}
+	res.WriteByte('}')
+	return res.String()
+}
+func (FunctionDeclarationStatement) statement() {}
