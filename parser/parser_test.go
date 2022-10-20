@@ -372,3 +372,64 @@ func TestLoop2(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestIf1(t *testing.T) {
+	input := `
+		if true {} elseif true {} else {}
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestIf2(t *testing.T) {
+	input := `
+		if (gt 6 -1) {
+			Stdout::println("6 is greater than -1").
+		} elseif (not (lt 5 6)) {
+			Stdout::println("::D").
+		} else {
+			Stdout::println( (+ 2 2) ).			
+		}
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestIf3(t *testing.T) {
+	input := `
+		if (gt 6 -1) {
+			Stdout::println("6 is greater than -1").
+		} elseif false { Stderr::println("Errororroorr"). }
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestIf4(t *testing.T) {
+	input := `
+		if (gt 6 -1) {
+			Stdout::println("6 is greater than -1").
+		} else { Stdout::println("else ran").  }
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestIf5(t *testing.T) {
+	input := `
+	elseif true { Stdout::println("else ran").  }
+;	else { Stdout::println("else ran").  }
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 1)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}

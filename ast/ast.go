@@ -313,3 +313,55 @@ func (l ListVariableDecl) String() string {
 	return res.String()
 }
 func (ListVariableDecl) statement() {}
+
+type ElseStatement struct {
+	Tok   token.Token // token.ELSE
+	Stmts []Statement
+}
+
+func (e ElseStatement) String() string {
+	var res strings.Builder
+	res.WriteString(" else {\n")
+	for _, v := range e.Stmts {
+		res.WriteByte('\t')
+		res.WriteString(v.String())
+		res.WriteByte('\n')
+	}
+	res.WriteByte('}')
+	return res.String()
+}
+func (ElseStatement) statement() {}
+
+type IfStatement struct {
+	Tok         token.Token // token.IF
+	Cond        Expr
+	Stmts       []Statement
+	Alternative *IfStatement
+	Default     *ElseStatement
+}
+
+func (i IfStatement) String() string {
+	var res strings.Builder
+	res.WriteString("if ")
+	if i.Cond != nil {
+		res.WriteString(i.Cond.String())
+		res.WriteString(" {\n")
+	} else {
+		res.WriteString("<nil_cond> {\n")
+	}
+	for _, v := range i.Stmts {
+		res.WriteByte('\t')
+		res.WriteString(v.String())
+		res.WriteByte('\n')
+	}
+	res.WriteByte('}')
+	if i.Alternative != nil {
+		res.WriteString(" else")
+		res.WriteString(i.Alternative.String())
+	}
+	if i.Default != nil {
+		res.WriteString(i.Default.String())
+	}
+	return res.String()
+}
+func (IfStatement) statement() {}

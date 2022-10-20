@@ -306,6 +306,14 @@ func (p *Parser) parseStatement() ast.Statement {
 		if stmt := p.parseDatatypeDeclarationStatement(); stmt != nil {
 			return stmt
 		}
+	case token.IF:
+		if stmt := p.parseIfStatement(false); stmt != nil {
+			return stmt
+		}
+	case token.ELSEIF, token.ELSE:
+		p.errorf(p.tok.Line, p.tok.Col, "elseif/else statement without a preceding if statement")
+		p.skip()
+		return nil
 	case token.EOF:
 		break
 	default:
@@ -398,6 +406,7 @@ func (p *Parser) parseExpr() ast.Expr {
 	case token.OPENING_SQUARE_BRACKET:
 		return p.parseListLiteral(false)
 	}
+
 	return nil
 }
 
@@ -858,4 +867,70 @@ end:
 		p.move() // skip .
 	}
 	return l
+}
+
+// isAlternative:
+// 	true => elseif
+//	false => if
+func (p *Parser) parseIfStatement(isAlternative bool) *ast.IfStatement {
+	// current token is token.IF
+	i := &ast.IfStatement{Tok: p.tok}
+	stmtType := "if"
+	if isAlternative {
+		stmtType = "elseif"
+	}
+	if peek := p.peek(); p.errif(!(isExpr(p.peek().Type)), newErr(peek.Line, peek.Col,
+		"unexpected token '%s' as condition to %s statement", peek.Literal, stmtType)) {
+		return nil
+	}
+	line, col := p.peek().Line, p.peek().Col
+	if cond := p.parseExpr(); cond != nil {
+		i.Cond = cond
+	}
+	if p.errif(i.Cond == nil, newErr(line, col, "no condition in %s statement body", stmtType)) {
+		return nil
+	}
+	if p.errif(p.curnot(token.OPENING_CURLY), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' in if statement, where a '{' was expected", p.tok.Literal)) {
+		return nil
+	}
+	p.move() // skip {
+	for p.curnot(token.CLOSING_CURLY) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed %s statement", stmtType)) {
+			return nil
+		}
+		if stmt := p.parseStatement(); stmt != nil {
+			i.Stmts = append(i.Stmts, stmt)
+		}
+	}
+	// current token is token.CLOSING_CURLY
+	p.move()
+	switch p.tok.Type {
+	case token.ELSEIF:
+		i.Alternative = p.parseIfStatement(true)
+	case token.ELSE:
+		i.Default = p.parseElseStatement()
+	}
+	return i
+}
+
+func (p *Parser) parseElseStatement() *ast.ElseStatement {
+	// current token is token.ELSE
+	e := &ast.ElseStatement{Tok: p.tok}
+	if openingCurlyOk := p.expect(token.OPENING_CURLY); !(openingCurlyOk) {
+		p.errorf(p.tok.Line, p.tok.Col, "unexpected token '%s', where a '{' was expected in else statement", p.tok.Literal)
+		p.skip()
+		return nil
+	}
+	p.move() // skip {
+	for p.curnot(token.CLOSING_CURLY) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col, "unexpected end-of-file: unclosed else statement")) {
+			return nil
+		}
+		if stmt := p.parseStatement(); stmt != nil {
+			e.Stmts = append(e.Stmts, stmt)
+		}
+	}
+	p.move()
+	return e
 }
