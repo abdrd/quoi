@@ -314,6 +314,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		p.errorf(p.tok.Line, p.tok.Col, "elseif/else statement without a preceding if statement")
 		p.skip()
 		return nil
+	case token.FUN:
+		if stmt := p.parseFunctionDeclarationStatement(); stmt != nil {
+			return stmt
+		}
 	case token.EOF:
 		break
 	default:
@@ -933,4 +937,8 @@ func (p *Parser) parseElseStatement() *ast.ElseStatement {
 	}
 	p.move()
 	return e
+}
+
+func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationStatement {
+	panic("FUNCTION DECLARATIONS NOT IMPLEMENTED")
 }
