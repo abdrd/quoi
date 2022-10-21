@@ -210,7 +210,14 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
         Stdout::println("Happy birthday").
         age = (+ age 1).
     }
-    
+    ;; we can put '->' after parameter list, even if there are no return types.
+    ;; so, the below function declaration is also valid:
+    ;;
+    ;; func celebrate_birthday(int age) -> {
+    ;;  Stdout::println("Happy birthday").
+    ;;  age = (+ age 1).
+    ;; }
+
     celebrate_birthday(age).
     Stdout::println(age).       ; 31
     ```
