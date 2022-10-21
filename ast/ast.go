@@ -372,7 +372,10 @@ type FunctionParameter struct {
 }
 
 type FunctionReturnType struct {
-	Tok token.Token // actual type (token.INTKW, token.STRINGKW, token.IDENT, etc.)
+	Tok    token.Token // actual type (token.INTKW, token.STRINGKW, token.IDENT, etc.)
+	IsList bool        // since listof token is one token, and types of lists are composed of two tokens, ...
+	// listof int, listof string, listof City, ...
+	TypeOfList token.Token // int, string, City, ...
 }
 
 type FunctionDeclarationStatement struct {
@@ -411,8 +414,11 @@ func (f FunctionDeclarationStatement) String() string {
 		}
 	}
 	res.WriteString(" {")
+	res.WriteByte('\n')
 	for _, v := range f.Stmts {
+		res.WriteByte('\t')
 		res.WriteString(v.String())
+		res.WriteByte('\n')
 	}
 	res.WriteByte('}')
 	return res.String()

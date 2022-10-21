@@ -449,3 +449,23 @@ func TestParseFunParams1(t *testing.T) {
 		t.Logf("param#%d: (%s %s)\n", i, v.Tok.Literal, v.Name.String())
 	}
 }
+
+func TestFD1(t *testing.T) {
+	input := `
+		;fun a() {}
+		;fun
+		;fun a
+		;fun a(
+		;fun a()
+		;fun a() {
+		;fun a() -> {}
+		fun a() -> {
+			Stdout::println("Yes").
+			Stdout::println( Math::avg(1, 2, 3) ).
+		}
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}

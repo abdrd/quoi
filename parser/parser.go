@@ -196,6 +196,13 @@ func isOperator(tok token.Token) bool {
 	return ok
 }
 
+func isReturnType(tok token.Type) bool {
+	rtm := map[token.Type]bool{
+		token.INTKW: true, token.STRINGKW: true, token.BOOLKW: true, token.IDENT: true, token.LISTOF: true,
+	}
+	return rtm[tok]
+}
+
 func (p *Parser) Parse() *ast.Program {
 	if len(p.lexerErrors) > 0 {
 		for _, e := range p.lexerErrors {
@@ -943,7 +950,6 @@ func (p *Parser) parseFunctionParams(fnName string) []ast.FunctionParameter {
 	// current token is on a type
 	var res []ast.FunctionParameter
 	for p.curnot(token.CLOSING_PAREN) {
-		fmt.Println("params: ", p.tok)
 		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
 			"unexpected end-of-file: unclosed parameter list in function '%s'", fnName)) {
 			return nil
@@ -953,7 +959,6 @@ func (p *Parser) parseFunctionParams(fnName string) []ast.FunctionParameter {
 		line, col := p.tok.Line, p.tok.Col
 		isStmt := false
 		param.Name = p.parseIdentifier(isStmt)
-		fmt.Println("param.Name=", param.Name)
 		if p.errif(param.Name == nil, newErr(line, col, "missing parameter name in parameter list of function '%s'", fnName)) {
 			return nil
 		}
@@ -968,15 +973,58 @@ func (p *Parser) parseFunctionParams(fnName string) []ast.FunctionParameter {
 		}
 		p.move() // skip ,
 		res = append(res, param)
-		fmt.Println("appended: ", param)
-		fmt.Println("after append: res = ", res)
 	}
 	return res
 }
 
-func (p *Parser) parseFunctionReturnTypes() (int, []ast.FunctionReturnType) {
+func (p *Parser) parseFunctionReturnTypes(fnName string) (int, []ast.FunctionReturnType) {
 	// current token is '->'
-	return -1, []ast.FunctionReturnType{}
+	rtx := []ast.FunctionReturnType{}
+	p.move()
+	for p.curnot(token.OPENING_CURLY) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: missing function body in function declaration '%s'", fnName)) {
+			return -1, rtx
+		}
+		if p.errif(!(isReturnType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+			"illegal return type in function declaration '%s'", fnName)) {
+			return -1, rtx
+		}
+		// list return type is listof <type>
+		if p.curis(token.LISTOF) {
+			// no multi-dimensional list as return type
+			if peek := p.peek(); p.errif(p.peekis(token.LISTOF), newErr(peek.Line, peek.Col,
+				"no multi-dimensional list as return type")) {
+				return -1, rtx
+			}
+			if peek := p.peek(); p.errif(!(isReturnType(peek.Type)), newErr(peek.Line, peek.Col,
+				"invalid list type")) {
+				return -1, rtx
+			}
+			t := ast.FunctionReturnType{Tok: p.tok, IsList: true}
+			p.move()
+			t.TypeOfList = p.tok
+			rtx = append(rtx, t)
+			p.move()
+		}
+		t := ast.FunctionReturnType{Tok: p.tok}
+		p.move()
+		if p.errif(p.curis(token.NEWLINE) && p.peekis(token.OPENING_CURLY),
+			newErr(p.tok.Line, p.tok.Col, "illegal newline after return types in function declaration '%s'", fnName)) {
+			return -1, rtx
+		}
+		if p.errif(p.curnot(token.COMMA) && !(p.peekis(token.OPENING_CURLY)),
+			newErr(p.tok.Line, p.tok.Col, "missing comma between return types in function declaration '%s'", fnName)) {
+			return -1, rtx
+		}
+		p.move()
+		if p.errif(p.curis(token.OPENING_CURLY), newErr(p.tok.Line, p.tok.Col,
+			"redundant comma after return types in function declaration '%s'", fnName)) {
+			return -1, rtx
+		}
+		rtx = append(rtx, t)
+	}
+	return len(rtx), rtx
 }
 
 func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationStatement {
@@ -991,6 +1039,10 @@ func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationSta
 	p.move()
 	line, col := p.tok.Line, p.tok.Col
 	isStmt := false
+	if p.errif(p.curnot(token.IDENT), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' as function name where an identifier was expected", p.tok.Literal)) {
+		return nil
+	}
 	if name := p.parseIdentifier(isStmt); name != nil {
 		fds.Name = name
 	}
@@ -1016,7 +1068,7 @@ func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationSta
 	// if it is '->', then that means, there is at least one return type.
 noparam:
 	if p.curis(token.ARROW) {
-		count, types := p.parseFunctionReturnTypes()
+		count, types := p.parseFunctionReturnTypes(fds.Name.String())
 		fds.ReturnCount = count
 		fds.ReturnTypes = types
 	}
