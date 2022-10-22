@@ -367,8 +367,10 @@ func (i IfStatement) String() string {
 func (IfStatement) statement() {}
 
 type FunctionParameter struct {
-	Tok  token.Token // type of parameter (int, string, User, ...)
-	Name *Identifier // name of parameter
+	Tok        token.Token // type of parameter (int, string, User, ...)
+	IsList     bool
+	TypeOfList token.Token
+	Name       *Identifier // name of parameter
 }
 
 type FunctionReturnType struct {
@@ -399,6 +401,10 @@ func (f FunctionDeclarationStatement) String() string {
 	for i, v := range f.Params {
 		putComma := i != len(f.Params)-1
 		res.WriteString(v.Tok.Literal)
+		if v.IsList {
+			res.WriteByte(' ')
+			res.WriteString(v.TypeOfList.Literal)
+		}
 		res.WriteByte(' ')
 		res.WriteString(v.Name.String())
 		if putComma {

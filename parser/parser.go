@@ -94,6 +94,15 @@ func (p *Parser) peek() token.Token {
 	return p.tok
 }
 
+func (p *Parser) peekN(ahead uint) token.Token {
+	tokensLen := uint(len(p.tokens))
+	ok := p.ptr+ahead < tokensLen
+	if ok {
+		return p.tokens[p.ptr+ahead]
+	}
+	return p.tokens[tokensLen-1]
+}
+
 // check if peek token's type is t.
 // if it is, then move.
 func (p *Parser) expect(t token.Type) bool {
@@ -196,7 +205,7 @@ func isOperator(tok token.Token) bool {
 	return ok
 }
 
-func isReturnType(tok token.Type) bool {
+func isReturnOrFunctionParamType(tok token.Type) bool {
 	rtm := map[token.Type]bool{
 		token.INTKW: true, token.STRINGKW: true, token.BOOLKW: true, token.IDENT: true, token.LISTOF: true,
 	}
@@ -337,6 +346,9 @@ func (p *Parser) parseStatement() ast.Statement {
 }
 
 func (p *Parser) parseStringLiteral(isStmt bool) *ast.StringLiteral {
+	if p.errif(p.curnot(token.STRING), newErr(p.tok.Line, p.tok.Col, "illegal string '%s'", p.tok.Literal)) {
+		return nil
+	}
 	// if isStmt, then this is an expression statement.
 	// expression statements need a dot at the end, because they are statements.
 	s := &ast.StringLiteral{Typ: p.tok.Type, Val: p.tok.Literal}
@@ -352,6 +364,10 @@ func (p *Parser) parseStringLiteral(isStmt bool) *ast.StringLiteral {
 }
 
 func (p *Parser) parseIntLiteral(isStmt bool) *ast.IntLiteral {
+	// this can help me in debugging.
+	if p.errif(p.curnot(token.INT), newErr(p.tok.Line, p.tok.Col, "illegal integer '%s'", p.tok.Literal)) {
+		return nil
+	}
 	n := atoi(p)
 	i := &ast.IntLiteral{Typ: p.tok.Type, Val: n}
 	p.move()
@@ -366,6 +382,10 @@ func (p *Parser) parseIntLiteral(isStmt bool) *ast.IntLiteral {
 }
 
 func (p *Parser) parseBoolLiteral(isStmt bool) *ast.BoolLiteral {
+	// this can help me in debugging.
+	if p.errif(p.curnot(token.BOOL), newErr(p.tok.Line, p.tok.Col, "illegal boolean '%s'", p.tok.Literal)) {
+		return nil
+	}
 	b := atob(p)
 	boo := &ast.BoolLiteral{Typ: p.tok.Type, Val: b}
 	p.move()
@@ -380,6 +400,10 @@ func (p *Parser) parseBoolLiteral(isStmt bool) *ast.BoolLiteral {
 }
 
 func (p *Parser) parseIdentifier(isStmt bool) *ast.Identifier {
+	// this can help me in debugging.
+	if p.errif(p.curnot(token.IDENT), newErr(p.tok.Line, p.tok.Col, "illegal identifier '%s'", p.tok.Literal)) {
+		return nil
+	}
 	i := &ast.Identifier{Tok: p.tok}
 	p.move()
 	if isStmt {
@@ -946,35 +970,135 @@ func (p *Parser) parseElseStatement() *ast.ElseStatement {
 	return e
 }
 
+func (p *Parser) parseFunctionParam(fnName string) *ast.FunctionParameter {
+	// current token is a type, or 'listof'
+	param := &ast.FunctionParameter{Tok: p.tok}
+	param.IsList = p.curis(token.LISTOF)
+	validType := isReturnOrFunctionParamType(param.Tok.Type)
+	if param.IsList {
+		// expect the type of list
+		p.move()
+		// no multi-dimensional list
+		if p.errif(p.curis(token.LISTOF), newErr(p.tok.Line, p.tok.Col,
+			"illegal multi-dimensional list as parameter type in function declaration '%s'", fnName)) {
+			return nil
+		}
+		if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+			"invalid parameter type '%s' in function declaration '%s'", p.tok.Literal, fnName)) {
+			return nil
+		}
+		param.TypeOfList = p.tok
+		validType = isReturnOrFunctionParamType(param.TypeOfList.Type)
+	}
+	type_ := param.Tok.Literal
+	if param.IsList {
+		type_ = "listof " + param.TypeOfList.Literal
+	}
+	if p.errif(!(validType), newErr(p.tok.Line, p.tok.Col,
+		"invalid type '%s' for parameter in function declaration '%s'", type_, fnName)) {
+		return nil
+	}
+	p.move()
+	type_ = param.Tok.Literal
+	if param.IsList {
+		type_ += " " + param.TypeOfList.Literal
+	}
+	if p.errif(p.curis(token.NEWLINE), newErr(p.tok.Line, p.tok.Col,
+		"illegal newline after type '%s' in parameter list, in function declaration '%s'", type_, fnName)) {
+		return nil
+	}
+	if p.errif(p.curnot(token.IDENT), newErr(p.tok.Line, p.tok.Col,
+		"missing parameter name in function declaration '%s'", fnName)) {
+		return nil
+	}
+	// I want named arguments in Go.
+	// like: `p.parseIdentifier(isStmt=false)`, or `p.parseIdentifier(isStmt: false)`
+	// it'd be so good; especially when there are booleans to pass.
+	isStmt := false
+	param.Name = p.parseIdentifier(isStmt)
+	// expect comma
+	if p.curis(token.CLOSING_PAREN) {
+		return param
+	}
+	if p.errif(p.curnot(token.COMMA) && !(p.peekis(token.CLOSING_PAREN)), newErr(p.tok.Line, p.tok.Col,
+		"missing comma between parameters in function declaration '%s'", fnName)) {
+		return nil
+	}
+	line, col := p.tok.Line, p.tok.Col
+	stoppedAtComma := p.curis(token.COMMA)
+	redundantComma := stoppedAtComma && (p.peekis(token.CLOSING_PAREN) || p.peekis(token.NEWLINE) && p.peekN(2).Type == token.CLOSING_PAREN)
+	if p.errif(redundantComma, newErr(line, col,
+		"redundant comma in parameter list of function declaration '%s'", fnName)) {
+		return nil
+	}
+	p.move() // skip ,
+	p.moveif(p.curis(token.NEWLINE))
+	return param
+}
+
 func (p *Parser) parseFunctionParams(fnName string) []ast.FunctionParameter {
 	// current token is on a type
-	var res []ast.FunctionParameter
+	var res = []ast.FunctionParameter{}
 	for p.curnot(token.CLOSING_PAREN) {
 		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
 			"unexpected end-of-file: unclosed parameter list in function '%s'", fnName)) {
 			return nil
 		}
-		param := ast.FunctionParameter{Tok: p.tok}
-		p.move()
-		line, col := p.tok.Line, p.tok.Col
-		isStmt := false
-		param.Name = p.parseIdentifier(isStmt)
-		if p.errif(param.Name == nil, newErr(line, col, "missing parameter name in parameter list of function '%s'", fnName)) {
+		param := p.parseFunctionParam(fnName)
+		if param == nil {
 			return nil
 		}
-		p.moveif(p.curis(token.NEWLINE))
-		if p.errif(p.curnot(token.COMMA) && !(p.peekis(token.CLOSING_PAREN) && p.curnot(token.NEWLINE)),
-			newErr(p.tok.Line, p.tok.Col, "missing comma between parameters in function declaration '%s'", fnName)) {
-			return nil
-		}
-		if p.errif(p.curis(token.NEWLINE) && p.peekis(token.CLOSING_PAREN), newErr(p.tok.Line, p.tok.Col,
-			"invalid newline at the end of parameter list in function definition '%s'", fnName)) {
-			return nil
-		}
-		p.move() // skip ,
-		res = append(res, param)
+		res = append(res, *param)
 	}
+	p.move() // skip )
 	return res
+}
+
+func (p *Parser) parseFunctionReturnType(fnName string) *ast.FunctionReturnType {
+	// current token is a type
+	frt := &ast.FunctionReturnType{Tok: p.tok}
+	frt.IsList = frt.Tok.Type == token.LISTOF
+	if frt.IsList {
+		p.move()
+		if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+			"invalid type 'listof %s' as return type in function declaration '%s'", p.tok.Literal, fnName)) {
+			return nil
+		}
+		if p.errif(p.curis(token.LISTOF), newErr(p.tok.Line, p.tok.Col,
+			"illegal multi-dimensional list as return type in function declaration '%s'", fnName)) {
+			return nil
+		}
+		frt.TypeOfList = p.tok
+	}
+	if p.errif(!(isReturnOrFunctionParamType(frt.Tok.Type)), newErr(p.tok.Line, p.tok.Col,
+		"invalid type '%s' as return type in function declaration '%s'", p.tok.Literal, fnName)) {
+		return nil
+	}
+	p.move()
+	if p.curis(token.OPENING_CURLY) {
+		return frt
+	}
+	if p.errif(p.curnot(token.COMMA) && !(p.peekis(token.OPENING_CURLY)), newErr(p.tok.Line, p.tok.Col,
+		"missing comma between return types in function declaration '%s'", fnName)) {
+		return nil
+	}
+	type_ := frt.Tok.Literal
+	if frt.IsList {
+		type_ = "listof " + frt.TypeOfList.Literal
+	}
+	if p.errif(p.curis(token.NEWLINE) && p.peekis(token.COMMA), newErr(p.tok.Line, p.tok.Col,
+		"illegal newline after return type '%s' in function declaration '%s'", type_, fnName)) {
+		return nil
+	}
+	stoppedAtComma := p.curis(token.COMMA)
+	redundantComma := stoppedAtComma && (p.peekis(token.OPENING_CURLY) || p.peekis(token.NEWLINE) && p.peekN(2).Type == token.OPENING_CURLY)
+	if p.errif(redundantComma, newErr(p.tok.Line,
+		p.tok.Col, "redundant comma after return type '%s' in function declaration '%s'", type_, fnName)) {
+		return nil
+	}
+	p.moveif(p.curis(token.COMMA))
+	p.moveif(p.curis(token.NEWLINE))
+	return frt
 }
 
 func (p *Parser) parseFunctionReturnTypes(fnName string) (int, []ast.FunctionReturnType) {
@@ -984,56 +1108,18 @@ func (p *Parser) parseFunctionReturnTypes(fnName string) (int, []ast.FunctionRet
 	for p.curnot(token.OPENING_CURLY) {
 		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
 			"unexpected end-of-file: missing function body in function declaration '%s'", fnName)) {
-			return -1, rtx
+			return -1, nil
 		}
-		if p.errif(!(isReturnType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
-			"illegal return type in function declaration '%s'", fnName)) {
-			return -1, rtx
+		t := p.parseFunctionReturnType(fnName)
+		if t == nil {
+			return -1, nil
 		}
-		// list return type is listof <type>
-		if p.curis(token.LISTOF) {
-			// no multi-dimensional list as return type
-			if peek := p.peek(); p.errif(p.peekis(token.LISTOF), newErr(peek.Line, peek.Col,
-				"no multi-dimensional list as return type")) {
-				return -1, rtx
-			}
-			if peek := p.peek(); p.errif(!(isReturnType(peek.Type)), newErr(peek.Line, peek.Col,
-				"invalid list type")) {
-				return -1, rtx
-			}
-			t := ast.FunctionReturnType{Tok: p.tok, IsList: true}
-			p.move()
-			t.TypeOfList = p.tok
-			rtx = append(rtx, t)
-			p.move()
-		}
-		t := ast.FunctionReturnType{Tok: p.tok}
-		p.move()
-		if p.errif(p.curis(token.NEWLINE) && p.peekis(token.OPENING_CURLY),
-			newErr(p.tok.Line, p.tok.Col, "illegal newline after return types in function declaration '%s'", fnName)) {
-			return -1, rtx
-		}
-		if p.errif(p.curnot(token.COMMA) && !(p.peekis(token.OPENING_CURLY)),
-			newErr(p.tok.Line, p.tok.Col, "missing comma between return types in function declaration '%s'", fnName)) {
-			return -1, rtx
-		}
-		p.move()
-		if p.errif(p.curis(token.OPENING_CURLY), newErr(p.tok.Line, p.tok.Col,
-			"redundant comma after return types in function declaration '%s'", fnName)) {
-			return -1, rtx
-		}
-		rtx = append(rtx, t)
+		rtx = append(rtx, *t)
 	}
 	return len(rtx), rtx
 }
 
 func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationStatement {
-	/*
-		param : <type> <name>[, <param> | <name>, ...]
-		fun <name> ([<param>, ...]) [-> <type>[, <type>, ...]] {
-			<stmts>
-		}
-	*/
 	// current token is token.FUN
 	fds := &ast.FunctionDeclarationStatement{Tok: p.tok}
 	p.move()
@@ -1059,11 +1145,15 @@ func (p *Parser) parseFunctionDeclarationStatement() *ast.FunctionDeclarationSta
 		p.move()
 		goto noparam
 	}
-	if p.errif(p.curis(token.NEWLINE), newErr(p.tok.Line, p.tok.Col,
-		"illegal newline in parameter list of function declaration '%s'", fds.Name)) {
+	p.moveif(p.curis(token.NEWLINE)) // allow newline after '('
+	fds.Params = p.parseFunctionParams(fds.Name.String())
+	// we could've returned an error in parseFunctionParams, but I decided to just return nil in case of an error.
+	// this may cause bugs when we define `res` as `var res []ast.FunctionParameter`, in which case, res is nil.
+	// there could be no parameters in declaration, and we just return res as is, then that causes this function
+	// to return nil. Currently, parseFunctionParams returns nil, only when there is an error.
+	if fds.Params == nil {
 		return nil
 	}
-	fds.Params = p.parseFunctionParams(fds.Name.String())
 	// current token is either ->, or {
 	// if it is '->', then that means, there is at least one return type.
 noparam:
@@ -1071,6 +1161,9 @@ noparam:
 		count, types := p.parseFunctionReturnTypes(fds.Name.String())
 		fds.ReturnCount = count
 		fds.ReturnTypes = types
+	}
+	if fds.ReturnCount < 0 {
+		return nil
 	}
 	// current token is '{'
 	if p.errif(p.curnot(token.OPENING_CURLY), newErr(p.tok.Line, p.tok.Col,

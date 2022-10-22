@@ -469,3 +469,74 @@ func TestFD1(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestFD2(t *testing.T) {
+	input := `
+		;fun a(int x) -> { }
+		;fun a(int x, int
+		;	) {} 
+		;fun a(int x, int y,)  {}
+		;fun a(int x,
+		;int y) -> { Stdout::println("Hello"). Stdout::println("Hey"). }
+		
+		;fun a(int
+		;x) -> {}
+		
+		;fun a(int y, 
+		;	string x) -> {}
+		
+		;fun datatype() -> {}
+		
+		;fun a(User u, -> {}
+		;fun a(User u,) -> {}
+
+		;fun a() {}
+		;fun a( listof int x, listof string y ) -> {}
+		;fun a( listof listof string yy ) -> {} 
+		;fun a(listof string y, City city) -> {}
+		;fun a(listof string y, City city
+		;	) -> {}
+
+;		fun a(
+;			listof string y, City city
+;			) -> {}
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestFD3(t *testing.T) {
+	input := `
+			;fun a() -> string {}
+			
+			;fun a() -> 
+			;string {}
+		
+			;fun a(int a) -> int, {}
+
+			;fun a(User u) -> int,
+			;{}
+
+			;fun a(listof User ux) -> int
+			;{}
+
+			;fun a(listof int nx) -> int, string {}
+			
+			;fun a() -> int string int {}
+			
+;			fun a() -> string,
+;			int, 
+;			bool {
+;				return "Hey", 1, true.
+;			}
+
+			;fun a() -> string
+			;bool {}
+			`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
