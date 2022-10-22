@@ -294,6 +294,21 @@ func TestReturn1(t *testing.T) {
 	print_errs(t, errs)
 }
 
+func TestReturn2(t *testing.T) {
+	input := `
+		;return "Hey", a, true, b.
+		;return 1,.
+		;return .
+		;return 1 2.
+		return "Hey", "a", true.
+		return 1.
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
 func TestBreakAndContinue(t *testing.T) {
 	input := `
 		;break

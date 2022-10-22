@@ -528,6 +528,7 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	line, col := p.tok.Line, p.tok.Col
 	if p.peekis(token.DOT) {
 		// first time using goto :D
+		// I could've just swapped this if statement, and the one below; I know.
 		goto noval
 	}
 	if p.errif(!(isExpr(p.peek().Type)), newErr(p.peek().Line, p.peek().Col,
@@ -535,12 +536,28 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 		return nil
 	}
 noval:
-	r.Expr = p.parseExpr()
-	if p.errif(r.Expr == nil, newErr(line, col, "return statement with no value")) {
+	expr := p.parseExpr()
+	if p.errif(expr == nil, newErr(line, col, "return statement with no value")) {
 		return nil
 	}
+	r.ReturnValues = append(r.ReturnValues, expr)
+	// multiple returns
+	if p.curis(token.COMMA) {
+		for p.curnot(token.DOT) {
+			if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col, "unexpected end-of-file: unfinished return statement")) {
+				return nil
+			}
+			if p.errif(!(isExpr(p.peek().Type)), newErr(p.peek().Line, p.peek().Col,
+				"unexpected token '%s' as return value in return statement", p.peek().Literal)) {
+				return nil
+			}
+			if expr := p.parseExpr(); expr != nil {
+				r.ReturnValues = append(r.ReturnValues, expr)
+			}
+		}
+	}
 	if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
-		"unexpected token: need a dot at the end of a return statement")) {
+		"unexpected token '%s' where a dot was expected at the end of a return statement", p.tok.Literal)) {
 		return nil
 	}
 	p.move()

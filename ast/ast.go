@@ -122,13 +122,24 @@ func (b BlockStatement) String() string {
 func (BlockStatement) statement() {}
 
 type ReturnStatement struct {
-	Tok  token.Token
-	Expr Expr
+	Tok          token.Token
+	ReturnValues []Expr
 }
 
 func (r ReturnStatement) String() string {
-	return fmt.Sprintf("return %s.", r.Expr.String())
+	var res strings.Builder
+	res.WriteString("return ")
+	for i, v := range r.ReturnValues {
+		putComma := i != len(r.ReturnValues)-1
+		res.WriteString(v.String())
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteByte('.')
+	return res.String()
 }
+
 func (ReturnStatement) statement() {}
 
 type BreakStatement struct {
