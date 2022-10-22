@@ -73,10 +73,21 @@ datatype User {
 }
 
 ; initialization
-```
-**INITIALIZATION**
+User u = User {name="Jennifer" age=34}.
+User u2 = User{}. ; name, and age are set to their zero values.
+User u3 = User{name="Jennifer"}. ; age is set to its zero value, which is 0.
 
-See [Zero values](#zero-values)
+; getting field values
+string jennifer = (get u name).
+
+; setting field values
+; set operator returns back 'u' with name as "Hasan".
+
+print_User(u). // name = "Jennifer" age = 34
+u = (set u name "Hasan").
+; don't forget to reassign u; otherwise, u is not changed (well, before that, it is a compilation error; because, set expression is not used.).
+print_User(u). // name = "Hasan" age = 34
+```
 
 ##### Zero values
 
@@ -217,7 +228,6 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
     ;;  Stdout::println("Happy birthday").
     ;;  age = (+ age 1).
     ;; }
-
     celebrate_birthday(age).
     Stdout::println(age).       ; 31
     ```

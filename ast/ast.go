@@ -122,13 +122,24 @@ func (b BlockStatement) String() string {
 func (BlockStatement) statement() {}
 
 type ReturnStatement struct {
-	Tok  token.Token
-	Expr Expr
+	Tok          token.Token
+	ReturnValues []Expr
 }
 
 func (r ReturnStatement) String() string {
-	return fmt.Sprintf("return %s.", r.Expr.String())
+	var res strings.Builder
+	res.WriteString("return ")
+	for i, v := range r.ReturnValues {
+		putComma := i != len(r.ReturnValues)-1
+		res.WriteString(v.String())
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteByte('.')
+	return res.String()
 }
+
 func (ReturnStatement) statement() {}
 
 type BreakStatement struct {
@@ -367,8 +378,10 @@ func (i IfStatement) String() string {
 func (IfStatement) statement() {}
 
 type FunctionParameter struct {
-	Tok  token.Token // type of parameter (int, string, User, ...)
-	Name *Identifier // name of parameter
+	Tok        token.Token // type of parameter (int, string, User, ...)
+	IsList     bool
+	TypeOfList token.Token
+	Name       *Identifier // name of parameter
 }
 
 type FunctionReturnType struct {
@@ -399,6 +412,10 @@ func (f FunctionDeclarationStatement) String() string {
 	for i, v := range f.Params {
 		putComma := i != len(f.Params)-1
 		res.WriteString(v.Tok.Literal)
+		if v.IsList {
+			res.WriteByte(' ')
+			res.WriteString(v.TypeOfList.Literal)
+		}
 		res.WriteByte(' ')
 		res.WriteString(v.Name.String())
 		if putComma {
