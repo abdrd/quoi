@@ -234,6 +234,7 @@ func isASubseqVariableDecl(p *Parser) bool {
 	p.move()
 	ok := p.curis(token.COMMA)
 	p.ptr = ptr
+	p.tok = p.tokens[p.ptr]
 	return ok
 }
 
@@ -296,14 +297,14 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 	// parse variable declarations with primitive types
 	case token.STRINGKW, token.INTKW, token.BOOLKW:
-		var stmt ast.Statement
+		//var stmt ast.Statement
 		isSubseq := isASubseqVariableDecl(p)
 		if isSubseq {
-			stmt = p.parseSubsequentVariableDeclarations()
-		} else {
-			stmt = p.parseVariableDeclarationStatement()
+			if stmt := p.parseSubsequentVariableDeclarationStatement(); stmt != nil {
+				return stmt
+			}
 		}
-		if stmt != nil {
+		if stmt := p.parseVariableDeclarationStatement(); stmt != nil {
 			return stmt
 		}
 	case token.LISTOF:
@@ -501,7 +502,6 @@ func (p *Parser) parseVariableTypeAndName() (token.Token, *ast.Identifier) {
 	}
 	isStmt := false
 	id = p.parseIdentifier(isStmt)
-	p.move()
 	return tok, id
 }
 
@@ -546,9 +546,9 @@ noval:
 /* int n, string y, bool z = <expr>, ... . */
 /*  */
 /* this is called whenever we see a comma after an identifier in parseVariableDecl */
-func (p *Parser) parseSubsequentVariableDeclarations() *ast.SubsequentVariableDeclarationStatement {
+func (p *Parser) parseSubsequentVariableDeclarationStatement() *ast.SubsequentVariableDeclarationStatement {
 	// current token is a type
-	var res *ast.SubsequentVariableDeclarationStatement
+	var res = &ast.SubsequentVariableDeclarationStatement{}
 	// parse types, and names
 	for p.curnot(token.EQUAL) {
 		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
@@ -559,13 +559,16 @@ func (p *Parser) parseSubsequentVariableDeclarations() *ast.SubsequentVariableDe
 		if id == nil {
 			return nil
 		}
+		res.Types = append(res.Types, tok)
+		res.Names = append(res.Names, id)
+		if p.curis(token.EQUAL) {
+			break
+		}
 		if p.errif(p.curnot(token.COMMA), newErr(p.tok.Line, p.tok.Col,
 			"unexpected token '%s' where a comma was expected in subsequent variable declaration '%s %s'",
 			p.tok.Literal, tok.Literal, id.String())) {
 			return nil
 		}
-		res.Types = append(res.Types, tok)
-		res.Names = append(res.Names, id)
 		p.move() // skip ,
 	}
 	p.move() // skip =
