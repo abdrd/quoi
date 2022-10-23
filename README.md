@@ -83,10 +83,10 @@ string jennifer = (get u name).
 ; setting field values
 ; set operator returns back 'u' with name as "Hasan".
 
-print_User(u). // name = "Jennifer" age = 34
+print_User(u). // name = Jennifer, 34
 u = (set u name "Hasan").
 ; don't forget to reassign u; otherwise, u is not changed (well, before that, it is a compilation error; because, set expression is not used.).
-print_User(u). // name = "Hasan" age = 34
+print_User(u). // Hasan, 34
 ```
 
 ##### Zero values

@@ -212,6 +212,31 @@ func isReturnOrFunctionParamType(tok token.Type) bool {
 	return rtm[tok]
 }
 
+// decide whether there is a comma after <<type> <name>> pair, starting with 'type'.
+// there could be many newlines after 'type'.
+//
+// int
+//
+//		x, string y = 5, "Hello". 				is valid.
+//
+// starting from 'int', decide if we should parse it as a *ast.SubsequentVariableDeclarationStatement, or not.
+func isASubseqVariableDecl(p *Parser) bool {
+	// save ptr here to revert back to the old position of the parser.
+	ptr := p.ptr
+	// current token is a type. that is guaranteed.
+	p.move()
+	p.eat(token.NEWLINE)
+	if p.curnot(token.IDENT) {
+		// in this case, parseStatement will call parseVariableDeclarationStatement, and it will give an error.
+		// we don't care about this here actually.
+		return false
+	}
+	p.move()
+	ok := p.curis(token.COMMA)
+	p.ptr = ptr
+	return ok
+}
+
 func (p *Parser) Parse() *ast.Program {
 	if len(p.lexerErrors) > 0 {
 		for _, e := range p.lexerErrors {
@@ -242,7 +267,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	// (ast.Statement).
 	//
 	// Am I guessing correct?
-
+	thisIsAStmt := true
 	switch p.tok.Type {
 	case token.ILLEGAL:
 		p.errorf(p.tok.Line, p.tok.Col, "illegal token '%s'", p.tok.Literal)
@@ -250,32 +275,39 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.NEWLINE:
 		p.move()
 	case token.STRING:
-		if stmt := p.parseStringLiteral(true); stmt != nil {
+		if stmt := p.parseStringLiteral(thisIsAStmt); stmt != nil {
 			return stmt
 		}
 	case token.INT:
-		if stmt := p.parseIntLiteral(true); stmt != nil {
+		if stmt := p.parseIntLiteral(thisIsAStmt); stmt != nil {
 			return stmt
 		}
 	case token.BOOL:
-		if stmt := p.parseBoolLiteral(true); stmt != nil {
+		if stmt := p.parseBoolLiteral(thisIsAStmt); stmt != nil {
 			return stmt
 		}
 	case token.OPENING_SQUARE_BRACKET:
-		if stmt := p.parseListLiteral(true); stmt != nil {
+		if stmt := p.parseListLiteral(thisIsAStmt); stmt != nil {
 			return stmt
 		}
 	case token.OPENING_PAREN:
-		if stmt := p.parseOperator(true); stmt != nil {
+		if stmt := p.parseOperator(thisIsAStmt); stmt != nil {
 			return stmt
 		}
 	// parse variable declarations with primitive types
 	case token.STRINGKW, token.INTKW, token.BOOLKW:
-		if stmt := p.parseVariableDecl(); stmt != nil {
+		var stmt ast.Statement
+		isSubseq := isASubseqVariableDecl(p)
+		if isSubseq {
+			stmt = p.parseSubsequentVariableDeclarations()
+		} else {
+			stmt = p.parseVariableDeclarationStatement()
+		}
+		if stmt != nil {
 			return stmt
 		}
 	case token.LISTOF:
-		if stmt := p.parseListVariableDecl(); stmt != nil {
+		if stmt := p.parseListVariableDeclarationStatement(); stmt != nil {
 			return stmt
 		}
 	case token.IDENT:
@@ -286,7 +318,7 @@ func (p *Parser) parseStatement() ast.Statement {
 				return stmt
 			}
 		case token.OPENING_PAREN:
-			if stmt := p.parseFunctionCall(identTok, true, ""); stmt != nil {
+			if stmt := p.parseFunctionCall(identTok, thisIsAStmt, ""); stmt != nil {
 				return stmt
 			}
 		case token.DOUBLE_COLON:
@@ -295,7 +327,7 @@ func (p *Parser) parseStatement() ast.Statement {
 			}
 		}
 		// identifier
-		if stmt := p.parseIdentifier(true); stmt != nil {
+		if stmt := p.parseIdentifier(thisIsAStmt); stmt != nil {
 			return stmt
 		}
 	case token.BLOCK:
@@ -445,17 +477,45 @@ func (p *Parser) parseExpr() ast.Expr {
 	return nil
 }
 
-func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
-	v := &ast.VariableDeclaration{Tok: p.tok}
-	if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
-		p.errorf(peek.Line, peek.Col, "unexpected token: expected an identifier, but got '%s'", peek.Type)
-		p.move()
+func (p *Parser) parseVariableTypeAndName() (token.Token, *ast.Identifier) {
+	// current token is a type must be a type
+	var (
+		tok token.Token
+		id  *ast.Identifier
+	)
+	if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+		"illegal type '%s' in variable declaration statement", p.tok.Literal)) {
+		return tok, nil
+	}
+	tok = p.tok
+	p.move()
+	p.eat(token.NEWLINE)
+	// allow newline after type.
+	// int
+	//     x = 5.
+	// is legal.
+	if p.errif(p.curnot(token.IDENT), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s' in variable declaration statement, where an identifier were expected after type '%s'",
+		p.tok.Literal, tok.Literal)) {
+		return tok, nil
+	}
+	isStmt := false
+	id = p.parseIdentifier(isStmt)
+	p.move()
+	return tok, id
+}
+
+// TODO parse listof here.
+// TODO make multi-dimensional lists illegal.
+func (p *Parser) parseVariableDeclarationStatement() *ast.VariableDeclarationStatement {
+	tok, id := p.parseVariableTypeAndName()
+	if id == nil { // parseVariableTypeAndName's second return value is nil, only when there was an error
+		// we don't report any errors here; because, parseVariableTypeAndName already did that for us.
 		return nil
 	}
-	v.Ident = p.parseIdentifier(false)
-	if p.errif(p.curnot(token.EQUAL),
-		newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s', expected an equal sign", p.tok.Literal)) {
+	v := &ast.VariableDeclarationStatement{Tok: tok, Ident: id}
+	if p.errif(p.curnot(token.EQUAL), newErr(p.tok.Line, p.tok.Col,
+		"unexpected token '%s', expected an equal sign", p.tok.Literal)) {
 		return nil
 	}
 	line, col := p.peek().Line, p.peek().Col
@@ -470,15 +530,70 @@ func (p *Parser) parseVariableDecl() *ast.VariableDeclaration {
 noval:
 	v.Value = p.parseExpr()
 	if p.errif(v.Value == nil,
-		newErr(line, col, "no value set to variable")) {
+		newErr(line, col, "no value set to variable '%s'", id.String())) {
 		return nil
 	}
 	if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
 		"unexpected token: need a dot at the end of a statement")) {
 		return nil
 	}
-	p.move() // skip dot
+	p.move()
 	return v
+}
+
+/* parse comma separated variables */
+/* like: */
+/* int n, string y, bool z = <expr>, ... . */
+/*  */
+/* this is called whenever we see a comma after an identifier in parseVariableDecl */
+func (p *Parser) parseSubsequentVariableDeclarations() *ast.SubsequentVariableDeclarationStatement {
+	// current token is a type
+	var res *ast.SubsequentVariableDeclarationStatement
+	// parse types, and names
+	for p.curnot(token.EQUAL) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: unfinished subsequent variable declaration statement")) {
+			return nil
+		}
+		tok, id := p.parseVariableTypeAndName()
+		if id == nil {
+			return nil
+		}
+		if p.errif(p.curnot(token.COMMA), newErr(p.tok.Line, p.tok.Col,
+			"unexpected token '%s' where a comma was expected in subsequent variable declaration '%s %s'",
+			p.tok.Literal, tok.Literal, id.String())) {
+			return nil
+		}
+		res.Types = append(res.Types, tok)
+		res.Names = append(res.Names, id)
+		p.move() // skip ,
+	}
+	p.move() // skip =
+	for p.curnot(token.DOT) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: unfinished subsequent variable declaration statement")) {
+			return nil
+		}
+		if p.errif(!(isExpr(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+			"unexpected token '%s' as value in subsequent variable declaration statement", p.tok.Literal)) {
+			return nil
+		}
+		p.unmove()
+		if xpr := p.parseExpr(); xpr != nil {
+			res.Values = append(res.Values, xpr)
+		}
+		if p.curis(token.DOT) {
+			break
+		}
+		if p.errif(p.curnot(token.COMMA), newErr(p.tok.Line, p.tok.Col,
+			"unexpected token '%s' in subsequent variable declaration statement, where a comma was expected", p.tok.Literal)) {
+			return nil
+		}
+		p.move() // skip ,
+		p.eat(token.NEWLINE)
+	}
+	p.move() // skip .
+	return res
 }
 
 func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.ReassignmentStatement {
@@ -823,9 +938,9 @@ func (p *Parser) parseFunctionCallFromNamespace(namespaceTok token.Token, isStmt
 	return fcfn
 }
 
-func (p *Parser) parseListVariableDecl() *ast.ListVariableDecl {
+func (p *Parser) parseListVariableDeclarationStatement() *ast.ListVariableDeclarationStatement {
 	// current token is 'listof'
-	l := &ast.ListVariableDecl{Tok: p.tok}
+	l := &ast.ListVariableDeclarationStatement{Tok: p.tok}
 	var canBeATypeForList = func(tok token.Type) bool {
 		tflm := map[token.Type]bool{
 			token.INTKW: true, token.STRINGKW: true, token.BOOLKW: true, token.IDENT: true,
