@@ -158,8 +158,24 @@ func TestVarDecl3(t *testing.T) {
 
 func TestSubseqVar1(t *testing.T) {
 	input := `
-		int x, int y = 1, 2.
-	`
+		;int x, int y = 1, 2.
+		
+		;int 
+		;
+		;x, int y = 1, 2.
+	
+		;int x
+		;, int y = 1, 2.
+		
+		;int x, int
+		;y, string z = -161, 1236, 
+		;"HEllo".
+
+		;int x, int y = 
+		;5, 6.
+
+		listof x, listof y = [], [].
+		`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
 	print_stmts(t, program)
