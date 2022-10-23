@@ -70,13 +70,13 @@ func (i Identifier) String() string {
 }
 func (i Identifier) statement() {}
 
-type VariableDeclaration struct {
+type VariableDeclarationStatement struct {
 	Tok   token.Token // variable type
 	Ident *Identifier // variable name
 	Value Expr        // variable value
 }
 
-func (v VariableDeclaration) String() string {
+func (v VariableDeclarationStatement) String() string {
 	if v.Value == nil {
 		return "VALUE (Expr) IS NIL"
 	}
@@ -86,7 +86,38 @@ func (v VariableDeclaration) String() string {
 	}
 	return fmt.Sprintf("%s %s = %s.", v.Tok.Literal, name, v.Value.String())
 }
-func (VariableDeclaration) statement() {}
+func (VariableDeclarationStatement) statement() {}
+
+type SubsequentVariableDeclarationStatement struct {
+	Types  []token.Token
+	Names  []*Identifier
+	Values []Expr
+}
+
+func (s SubsequentVariableDeclarationStatement) String() string {
+	var res strings.Builder
+	for i, v := range s.Types {
+		putComma := i != len(s.Names)-1
+		// there are as many names as types.
+		res.WriteString(v.Literal)
+		res.WriteByte(' ')
+		res.WriteString(s.Names[i].String())
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteString(" = ")
+	for i, v := range s.Values {
+		putComma := i != len(s.Values)-1
+		res.WriteString(v.String())
+		if putComma {
+			res.WriteString(", ")
+		}
+	}
+	res.WriteByte('.')
+	return res.String()
+}
+func (SubsequentVariableDeclarationStatement) statement() {}
 
 type ReassignmentStatement struct {
 	Tok      token.Token // IDENT token
@@ -303,14 +334,14 @@ func (l ListLiteral) String() string {
 }
 func (ListLiteral) statement() {}
 
-type ListVariableDecl struct {
+type ListVariableDeclarationStatement struct {
 	Tok  token.Token
 	Typ  token.Token // types of elements in the list
 	Name *Identifier
 	List *ListLiteral
 }
 
-func (l ListVariableDecl) String() string {
+func (l ListVariableDeclarationStatement) String() string {
 	var res strings.Builder
 	ident := "<nil_varname>"
 	if l.Name != nil {
@@ -323,7 +354,7 @@ func (l ListVariableDecl) String() string {
 	res.WriteString(fmt.Sprintf("listof %s %s = %s.", l.Typ.Literal, ident, list))
 	return res.String()
 }
-func (ListVariableDecl) statement() {}
+func (ListVariableDeclarationStatement) statement() {}
 
 type ElseStatement struct {
 	Tok   token.Token // token.ELSE

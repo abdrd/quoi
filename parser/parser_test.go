@@ -156,6 +156,16 @@ func TestVarDecl3(t *testing.T) {
 	print_errs(t, errs)
 }
 
+func TestSubseqVar1(t *testing.T) {
+	input := `
+		int x, int y = 1, 2.
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
 func TestDT1(t *testing.T) {
 	input := `
 		datatype City {
