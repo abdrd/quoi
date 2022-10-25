@@ -472,3 +472,35 @@ func (f FunctionDeclarationStatement) String() string {
 	return res.String()
 }
 func (FunctionDeclarationStatement) statement() {}
+
+// <ident>=<value>
+type DataypeLiteralField struct {
+	Name  *Identifier
+	Value Expr
+}
+
+func (d DataypeLiteralField) String() string {
+	return fmt.Sprintf("%s=%s", d.Name.String(), d.Value.String())
+}
+
+type DatatypeLiteral struct {
+	Tok    token.Token // token.IDENT
+	Fields []*DataypeLiteralField
+}
+
+func (d DatatypeLiteral) String() string {
+	var res strings.Builder
+	res.WriteString(d.Tok.Literal)
+	res.WriteByte('{')
+	if len(d.Fields) > 0 {
+		res.WriteByte('\n')
+	}
+	for _, v := range d.Fields {
+		res.WriteByte('\t')
+		res.WriteString(v.String())
+		res.WriteByte('\n')
+	}
+	res.WriteByte('}')
+	return res.String()
+}
+func (DatatypeLiteral) statement() {}

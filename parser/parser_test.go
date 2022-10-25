@@ -581,3 +581,42 @@ func TestFD3(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestDTL1(t *testing.T) {
+	input := `
+		;User{name="Jennifer" age=34}.	
+		;City {name="X" founded_in = 1935}.
+		;Person{}.
+		
+		;Person 
+		;{}.
+
+		;Person {
+		;
+		;}.
+
+		;Lexer 
+		;{
+		;
+		;}.
+
+		Monster
+		{
+			name = "Very Scary Monster"
+			power = 1620
+			lives_in = Swamp {
+				swamp_number=12
+				kmsqr = 10
+			}
+			nested = Nested{ 
+				Datatype=Jenny {
+					na="me"
+				}
+			}
+		}.
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
