@@ -223,10 +223,10 @@ func isReturnOrFunctionParamType(tok token.Type) bool {
 func isASubseqVariableDecl(p *Parser) bool {
 	// save ptr here to revert back to the old position of the parser.
 	ptr := p.ptr
-	// current token is a type. that is guaranteed.
-	p.move()
+	p.move() /// FOR isASubseqVariableDecl -- current token is a type. that is guaranteed.
 	p.eat(token.NEWLINE)
 	if p.curnot(token.IDENT) {
+		/// FOR isASubseqVariableDecl --
 		// in this case, parseStatement will call parseVariableDeclarationStatement, and it will give an error.
 		// we don't care about this here actually.
 		return false
@@ -236,6 +236,20 @@ func isASubseqVariableDecl(p *Parser) bool {
 	p.ptr = ptr
 	p.tok = p.tokens[p.ptr]
 	return ok
+}
+
+// dangerously similar to isASubseqVariableDecl.
+func isDatatypeInitialization(p *Parser) bool {
+	// current: token.IDENT
+	ptr := p.ptr
+	p.move()
+	p.eat(token.NEWLINE)
+	if p.curnot(token.OPENING_CURLY) {
+		return false
+	}
+	p.ptr = ptr
+	p.tok = p.tokens[p.ptr]
+	return true
 }
 
 func (p *Parser) Parse() *ast.Program {
@@ -324,6 +338,11 @@ func (p *Parser) parseStatement() ast.Statement {
 			}
 		case token.DOUBLE_COLON:
 			if stmt := p.parseFunctionCallFromNamespace(identTok, true); stmt != nil {
+				return stmt
+			}
+		}
+		if isDatatypeInitialization(p) {
+			if stmt := p.parseDatatypeLiteral(thisIsAStmt); stmt != nil {
 				return stmt
 			}
 		}
@@ -467,6 +486,9 @@ func (p *Parser) parseExpr() ast.Expr {
 			return p.parseFunctionCall(identTok, false, "")
 		case token.DOUBLE_COLON:
 			return p.parseFunctionCallFromNamespace(identTok, false)
+		}
+		if isDatatypeInitialization(p) {
+			return p.parseDatatypeLiteral(false)
 		}
 		return p.parseIdentifier(false)
 	case token.OPENING_PAREN:
@@ -1318,4 +1340,64 @@ noparam:
 	}
 	p.move() // skip '}'
 	return fds
+}
+
+func (p *Parser) parseDatatypeLiteralField(literal string) *ast.DataypeLiteralField {
+	// current token is token.IDENT
+	dlf := &ast.DataypeLiteralField{}
+	isStmt := false
+	line, col := p.tok.Line, p.tok.Col
+	dlf.Name = p.parseIdentifier(isStmt)
+	if p.errif(dlf.Name == nil, newErr(line, col, "missing field name in datatype literal '%s'", literal)) {
+		return nil
+	}
+	line, col = p.tok.Line, p.tok.Col
+	if p.errif(p.curnot(token.EQUAL), newErr(line, col,
+		"unexpected token '%s' after identifier in datatype literal '%s', where an '=' was expected", p.tok.Literal, literal)) {
+		return nil
+	}
+	// don't skip '=', because parseExpr checks p.peek().Type
+	if peek := p.peek(); p.errif(!(isExpr(peek.Type)), newErr(line, col,
+		"unexpected token '%s' as value to '%s' in datatype literal '%s'", peek.Literal, dlf.Name, literal)) {
+		return nil
+	}
+	dlf.Value = p.parseExpr()
+	// is it possible ? I think not...
+	if p.errif(dlf.Value == nil, newErr(line, col, "missing value to '%s' field in datatype literal '%s'", dlf.Name, literal)) {
+		return nil
+	}
+	p.eat(token.NEWLINE)
+	return dlf
+}
+
+func (p *Parser) parseDatatypeLiteral(isStmt bool) *ast.DatatypeLiteral {
+	dl := &ast.DatatypeLiteral{Tok: p.tok}
+	p.eat(token.NEWLINE)
+	p.move()
+	p.moveif(p.curis(token.OPENING_CURLY))
+	p.eat(token.NEWLINE)
+	p.moveif(p.curis(token.OPENING_CURLY))
+	p.eat(token.NEWLINE)
+	literal := dl.Tok.Literal
+	for p.curnot(token.CLOSING_CURLY) {
+		if p.errif(p.curis(token.EOF), newErr(p.tok.Line, p.tok.Col,
+			"unexpected end-of-file: unclosed datatype literal '%s'", literal)) {
+			return nil
+		}
+		f := p.parseDatatypeLiteralField(literal)
+		if f == nil {
+			return nil
+		}
+		dl.Fields = append(dl.Fields, f)
+		p.eat(token.NEWLINE)
+	}
+	p.move()
+	if isStmt {
+		if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
+			"unexpected token '%s' at the end of datatype literal '%s' where a dot was expected", p.tok.Literal, literal)) {
+			return nil
+		}
+		p.move()
+	}
+	return dl
 }
