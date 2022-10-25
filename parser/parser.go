@@ -1343,10 +1343,14 @@ noparam:
 }
 
 func (p *Parser) parseDatatypeLiteralField(literal string) *ast.DataypeLiteralField {
-	// current token is token.IDENT
+	// current token is token.IDENT.
 	dlf := &ast.DataypeLiteralField{}
 	isStmt := false
 	line, col := p.tok.Line, p.tok.Col
+	if p.errif(p.curnot(token.IDENT), newErr(line, col,
+		"unexpected token '%s' in datatype literal '%s', where an identifier was expected", p.tok.Literal, literal)) {
+		return nil
+	}
 	dlf.Name = p.parseIdentifier(isStmt)
 	if p.errif(dlf.Name == nil, newErr(line, col, "missing field name in datatype literal '%s'", literal)) {
 		return nil
