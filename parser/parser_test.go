@@ -620,3 +620,14 @@ func TestDTL1(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestDTL2(t *testing.T) {
+	input := `
+		;User {
+		User {}
+			`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
