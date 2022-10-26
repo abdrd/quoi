@@ -71,9 +71,11 @@ func (i Identifier) String() string {
 func (i Identifier) statement() {}
 
 type VariableDeclarationStatement struct {
-	Tok   token.Token // variable type
-	Ident *Identifier // variable name
-	Value Expr        // variable value
+	Tok        token.Token // variable type
+	IsList     bool
+	TypeOfList token.Token
+	Ident      *Identifier // variable name
+	Value      Expr        // variable value
 }
 
 func (v VariableDeclarationStatement) String() string {

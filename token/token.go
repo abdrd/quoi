@@ -48,13 +48,15 @@ const (
 	LTE
 	GT
 	GTE
+	GET
+	SET
 )
 
 func (t Type) String() string {
 	tt := map[Type]string{
 		EOF: "EOF", ILLEGAL: "ILLEGAL",
 		IDENT: "IDENTIFIER", INT: "INTEGER", STRING: "STRING", BOOL: "BOOLEAN",
-		DATATYPE: "DATATYPE", FUN: "FUN",
+		DATATYPE: "DATATYPE", FUN: "FUN", GET: "GET", SET: "SET",
 		BLOCK: "BLOCK", END: "END", IF: "IF", ELSEIF: "ELSEIF", ELSE: "ELSE",
 		LOOP: "LOOP", BREAK: "BREAK", CONTINUE: "CONTINUE", RETURN: "RETURN", NEWLINE: "NEWLINE",
 		OPENING_PAREN: "OPENING_PAREN", CLOSING_PAREN: "CLOSING_PAREN",
@@ -109,6 +111,10 @@ func PrefixExprName(t Type) string {
 		return "lte"
 	case GTE:
 		return "gte"
+	case GET:
+		return "get"
+	case SET:
+		return "set"
 	case SINGLE_QUOTE:
 		return "'"
 	}

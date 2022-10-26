@@ -199,7 +199,7 @@ func isOperator(tok token.Token) bool {
 	lit := tok.Literal
 	opm := map[string]bool{
 		"+": true, "-": true, "*": true, "/": true, "'": true, "=": true, "lt": true, "lte": true,
-		"gt": true, "gte": true, "and": true, "or": true, "not": true,
+		"gt": true, "gte": true, "and": true, "or": true, "not": true, "set": true, "get": true,
 	}
 	ok := opm[lit]
 	return ok
@@ -500,17 +500,34 @@ func (p *Parser) parseExpr() ast.Expr {
 	return nil
 }
 
-func (p *Parser) parseVariableTypeAndName() (token.Token, *ast.Identifier) {
+// return tok, isList, typeOfList, id
+// TODO refactor ?
+func (p *Parser) parseVariableTypeAndName() (token.Token, bool, token.Token, *ast.Identifier) {
 	// current token is a type must be a type
 	var (
-		tok token.Token
-		id  *ast.Identifier
+		tok        token.Token
+		id         *ast.Identifier
+		isList     bool
+		typeOfList token.Token
 	)
 	if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
 		"illegal type '%s' in variable declaration statement", p.tok.Literal)) {
-		return tok, nil
+		return tok, isList, typeOfList, nil
 	}
 	tok = p.tok
+	isList = p.curis(token.LISTOF)
+	if isList {
+		p.move()
+		if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
+			"unexpected token '%s' as type of list", p.tok.Literal)) {
+			return tok, isList, typeOfList, nil
+		}
+		if p.errif(p.curis(token.LISTOF), newErr(p.tok.Line, p.tok.Col,
+			"illegal multi-dimensional list")) {
+			return tok, isList, typeOfList, nil
+		}
+		typeOfList = p.tok
+	}
 	p.move()
 	p.eat(token.NEWLINE)
 	// allow newline after type.
@@ -520,22 +537,20 @@ func (p *Parser) parseVariableTypeAndName() (token.Token, *ast.Identifier) {
 	if p.errif(p.curnot(token.IDENT), newErr(p.tok.Line, p.tok.Col,
 		"unexpected token '%s' in variable declaration statement, where an identifier were expected after type '%s'",
 		p.tok.Literal, tok.Literal)) {
-		return tok, nil
+		return tok, isList, typeOfList, nil
 	}
 	isStmt := false
 	id = p.parseIdentifier(isStmt)
-	return tok, id
+	return tok, isList, typeOfList, id
 }
 
-// TODO parse listof here.
-// TODO make multi-dimensional lists illegal.
 func (p *Parser) parseVariableDeclarationStatement() *ast.VariableDeclarationStatement {
-	tok, id := p.parseVariableTypeAndName()
+	tok, isList, typeOfList, id := p.parseVariableTypeAndName()
 	if id == nil { // parseVariableTypeAndName's second return value is nil, only when there was an error
 		// we don't report any errors here; because, parseVariableTypeAndName already did that for us.
 		return nil
 	}
-	v := &ast.VariableDeclarationStatement{Tok: tok, Ident: id}
+	v := &ast.VariableDeclarationStatement{Tok: tok, Ident: id, IsList: isList, TypeOfList: typeOfList}
 	if p.errif(p.curnot(token.EQUAL), newErr(p.tok.Line, p.tok.Col,
 		"unexpected token '%s', expected an equal sign", p.tok.Literal)) {
 		return nil
@@ -551,6 +566,7 @@ func (p *Parser) parseVariableDeclarationStatement() *ast.VariableDeclarationSta
 	}
 noval:
 	v.Value = p.parseExpr()
+	fmt.Println("v.Value: ", v.Value.String())
 	if p.errif(v.Value == nil,
 		newErr(line, col, "no value set to variable '%s'", id.String())) {
 		return nil
@@ -859,6 +875,7 @@ func (p *Parser) parseOperator(isStmt bool) *ast.PrefixExpr {
 	pe.Tok = p.tok // set operator
 	p.move()       // skip operator
 	for p.curnot(token.CLOSING_PAREN) {
+		fmt.Println("loooop 1", p.tok)
 		p.moveif(p.curis(token.NEWLINE))
 		if p.curis(token.CLOSING_PAREN) {
 			break
