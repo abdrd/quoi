@@ -159,7 +159,7 @@ See [datatype](#datatypes)
 List of all keywords: 
 
 ``` 
-datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, return, break, continue, and, or, not, lt, lte, gt, gte
+datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, return, break, continue, get, set, and, or, not, lt, lte, gt, gte
 ```
 
 --- 

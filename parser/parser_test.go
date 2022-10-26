@@ -281,6 +281,24 @@ func TestPrefExpr2(t *testing.T) {
 	print_errs(t, errs)
 }
 
+func TestPrefExpr3(t *testing.T) {
+	input := `
+		;User u = User{ name="User 1" }.
+		u = (set u name "Jenny"). 
+		Stdout::println( (get u name) ).
+		(gte 5 6 6 ).
+		(get "ha" name).
+		(gte u y).
+		(+ a b).
+		(+ aa bb).
+
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
 func TestRA1(t *testing.T) {
 	input := `
 		name = "Hey".
@@ -624,7 +642,7 @@ func TestDTL1(t *testing.T) {
 func TestDTL2(t *testing.T) {
 	input := `
 		;User {
-		User {}
+		;User {}
 			`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
