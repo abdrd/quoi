@@ -173,8 +173,17 @@ func TestSubseqVar1(t *testing.T) {
 
 		;int x, int y = 
 		;5, 6.
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
 
-		listof x, listof y = [], [].
+func TestSubseqVar2(t *testing.T) {
+	input := `
+		;listof int x, listof string y = [], [].
+		int x, listof User ux, bool y = 5, [User {name="Hello"}], true. 
 		`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
