@@ -71,27 +71,31 @@ func (i Identifier) String() string {
 func (i Identifier) statement() {}
 
 type VariableDeclarationStatement struct {
-	Tok        token.Token // variable type
-	IsList     bool
-	TypeOfList token.Token
-	Ident      *Identifier // variable name
-	Value      Expr        // variable value
+	Tok   token.Token // variable type
+	Ident *Identifier // variable name
+	Value Expr        // variable value
 }
 
 func (v VariableDeclarationStatement) String() string {
-	if v.Value == nil {
-		return "VALUE (Expr) IS NIL"
-	}
-	name := ""
-	if v.Ident != nil {
-		name = v.Ident.String()
-	}
-	return fmt.Sprintf("%s %s = %s.", v.Tok.Literal, name, v.Value.String())
+	var res strings.Builder
+	res.WriteString(v.Tok.Literal)
+	res.WriteByte(' ')
+	res.WriteString(v.Ident.String())
+	res.WriteString(" = ")
+	res.WriteString(v.Value.String())
+	return res.String()
 }
 func (VariableDeclarationStatement) statement() {}
 
+type VarType struct {
+	Tok        token.Token
+	IsList     bool
+	TypeOfList token.Token
+}
+
+/* This structure is a bit weird, isn't it ? */
 type SubsequentVariableDeclarationStatement struct {
-	Types  []token.Token
+	Types  []VarType
 	Names  []*Identifier
 	Values []Expr
 }
@@ -100,10 +104,16 @@ func (s SubsequentVariableDeclarationStatement) String() string {
 	var res strings.Builder
 	for i, v := range s.Types {
 		putComma := i != len(s.Names)-1
-		// there are as many names as types.
-		res.WriteString(v.Literal)
-		res.WriteByte(' ')
+		if v.IsList {
+			res.WriteString("listof ")
+			res.WriteString(v.TypeOfList.Literal)
+			res.WriteByte(' ')
+		} else {
+			res.WriteString(v.Tok.Literal)
+			res.WriteByte(' ')
+		}
 		res.WriteString(s.Names[i].String())
+		res.WriteByte(' ')
 		if putComma {
 			res.WriteString(", ")
 		}
@@ -494,13 +504,18 @@ func (d DatatypeLiteral) String() string {
 	var res strings.Builder
 	res.WriteString(d.Tok.Literal)
 	res.WriteByte('{')
-	if len(d.Fields) > 0 {
+	lenFieldsGt1 := len(d.Fields) > 1
+	if lenFieldsGt1 {
 		res.WriteByte('\n')
 	}
 	for _, v := range d.Fields {
-		res.WriteByte('\t')
+		if lenFieldsGt1 {
+			res.WriteByte('\t')
+		}
 		res.WriteString(v.String())
-		res.WriteByte('\n')
+		if lenFieldsGt1 {
+			res.WriteByte('\n')
+		}
 	}
 	res.WriteByte('}')
 	return res.String()

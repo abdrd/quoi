@@ -1,6 +1,5 @@
 
 parser/parser.go
 	TODO Don't give redundant error messages.
+	TODO listofs in subsequent variable declarations
 	TODO make this memory efficient
-	TODO parse listof here.
-	TODO make multi-dimensional lists illegal.

@@ -10,6 +10,8 @@ import (
 
 // TODO Don't give redundant error messages.
 
+// TODO listofs in subsequent variable declarations
+
 type Err struct {
 	Msg          string
 	Column, Line uint
@@ -222,11 +224,11 @@ func isReturnOrFunctionParamType(tok token.Type) bool {
 // starting from 'int', decide if we should parse it as a *ast.SubsequentVariableDeclarationStatement, or not.
 func isASubseqVariableDecl(p *Parser) bool {
 	// save ptr here to revert back to the old position of the parser.
-	ptr := p.ptr
-	p.move() /// FOR isASubseqVariableDecl -- current token is a type. that is guaranteed.
+	ptr := p.ptr // current token is a type, or a token.LISTOF.
+	p.moveif(p.curis(token.LISTOF))
+	p.move()
 	p.eat(token.NEWLINE)
 	if p.curnot(token.IDENT) {
-		/// FOR isASubseqVariableDecl --
 		// in this case, parseStatement will call parseVariableDeclarationStatement, and it will give an error.
 		// we don't care about this here actually.
 		return false
@@ -282,6 +284,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	// (ast.Statement).
 	//
 	// Am I guessing correct?
+
 	thisIsAStmt := true
 	switch p.tok.Type {
 	case token.ILLEGAL:
@@ -311,7 +314,6 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 	// parse variable declarations with primitive types
 	case token.STRINGKW, token.INTKW, token.BOOLKW:
-		//var stmt ast.Statement
 		isSubseq := isASubseqVariableDecl(p)
 		if isSubseq {
 			if stmt := p.parseSubsequentVariableDeclarationStatement(); stmt != nil {
@@ -322,6 +324,12 @@ func (p *Parser) parseStatement() ast.Statement {
 			return stmt
 		}
 	case token.LISTOF:
+		isSubseq := isASubseqVariableDecl(p)
+		if isSubseq {
+			if stmt := p.parseSubsequentVariableDeclarationStatement(); stmt != nil {
+				return stmt
+			}
+		}
 		if stmt := p.parseListVariableDeclarationStatement(); stmt != nil {
 			return stmt
 		}
@@ -500,33 +508,28 @@ func (p *Parser) parseExpr() ast.Expr {
 	return nil
 }
 
-// return tok, isList, typeOfList, id
-// TODO refactor ?
+// tok, isList, listType, identifier
 func (p *Parser) parseVariableTypeAndName() (token.Token, bool, token.Token, *ast.Identifier) {
 	// current token is a type must be a type
 	var (
-		tok        token.Token
-		id         *ast.Identifier
-		isList     bool
-		typeOfList token.Token
+		tok     token.Token
+		listTyp token.Token
+		id      *ast.Identifier
+		isList  bool
 	)
 	if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
 		"illegal type '%s' in variable declaration statement", p.tok.Literal)) {
-		return tok, isList, typeOfList, nil
+		return tok, isList, listTyp, nil
 	}
 	tok = p.tok
-	isList = p.curis(token.LISTOF)
-	if isList {
+	if p.curis(token.LISTOF) {
+		isList = true
 		p.move()
 		if p.errif(!(isReturnOrFunctionParamType(p.tok.Type)), newErr(p.tok.Line, p.tok.Col,
-			"unexpected token '%s' as type of list", p.tok.Literal)) {
-			return tok, isList, typeOfList, nil
+			"illegal type '%s' in list variable declaration statement", p.tok.Literal)) {
+			return tok, isList, listTyp, nil
 		}
-		if p.errif(p.curis(token.LISTOF), newErr(p.tok.Line, p.tok.Col,
-			"illegal multi-dimensional list")) {
-			return tok, isList, typeOfList, nil
-		}
-		typeOfList = p.tok
+		listTyp = p.tok
 	}
 	p.move()
 	p.eat(token.NEWLINE)
@@ -537,20 +540,22 @@ func (p *Parser) parseVariableTypeAndName() (token.Token, bool, token.Token, *as
 	if p.errif(p.curnot(token.IDENT), newErr(p.tok.Line, p.tok.Col,
 		"unexpected token '%s' in variable declaration statement, where an identifier were expected after type '%s'",
 		p.tok.Literal, tok.Literal)) {
-		return tok, isList, typeOfList, nil
+		return tok, isList, listTyp, nil
 	}
 	isStmt := false
 	id = p.parseIdentifier(isStmt)
-	return tok, isList, typeOfList, id
+	return tok, isList, listTyp, id
 }
 
 func (p *Parser) parseVariableDeclarationStatement() *ast.VariableDeclarationStatement {
-	tok, isList, typeOfList, id := p.parseVariableTypeAndName()
+	var v = &ast.VariableDeclarationStatement{}
+	tok, _, _, id := p.parseVariableTypeAndName()
 	if id == nil { // parseVariableTypeAndName's second return value is nil, only when there was an error
 		// we don't report any errors here; because, parseVariableTypeAndName already did that for us.
 		return nil
 	}
-	v := &ast.VariableDeclarationStatement{Tok: tok, Ident: id, IsList: isList, TypeOfList: typeOfList}
+	v.Tok = tok
+	v.Ident = id
 	if p.errif(p.curnot(token.EQUAL), newErr(p.tok.Line, p.tok.Col,
 		"unexpected token '%s', expected an equal sign", p.tok.Literal)) {
 		return nil
@@ -566,9 +571,8 @@ func (p *Parser) parseVariableDeclarationStatement() *ast.VariableDeclarationSta
 	}
 noval:
 	v.Value = p.parseExpr()
-	fmt.Println("v.Value: ", v.Value.String())
 	if p.errif(v.Value == nil,
-		newErr(line, col, "no value set to variable '%s'", id.String())) {
+		newErr(line, col, "no value set to variable '%s'", v.Ident.String())) {
 		return nil
 	}
 	if p.errif(p.curnot(token.DOT), newErr(p.tok.Line, p.tok.Col,
@@ -593,11 +597,21 @@ func (p *Parser) parseSubsequentVariableDeclarationStatement() *ast.SubsequentVa
 			"unexpected end-of-file: unfinished subsequent variable declaration statement")) {
 			return nil
 		}
-		tok, id := p.parseVariableTypeAndName()
+		/*
+			NOTE: very interesting bug here
+			if we return listTyp as a *token.Token here, the returned tokens are ',', and '=', respectively; when the following
+			input is given:
+				``` listof int x, listof string y = [], []. ```
+			The interesting thing here is that, in parseVariableTypeAndName, the types of lists are actually correctly set.
+			(int, and string; respectively.)
+			I couldn't figure out the reason why, so I switched to returning non-pointer token.Token type.
+		*/
+		tok, isList, listTyp, id := p.parseVariableTypeAndName()
 		if id == nil {
 			return nil
 		}
-		res.Types = append(res.Types, tok)
+		typ := ast.VarType{Tok: tok, IsList: isList, TypeOfList: listTyp}
+		res.Types = append(res.Types, typ)
 		res.Names = append(res.Names, id)
 		if p.curis(token.EQUAL) {
 			break
@@ -647,7 +661,6 @@ func (p *Parser) parseReassignmentStatement(identTok token.Token) *ast.Reassignm
 	line, col := p.peek().Line, p.peek().Col
 	if p.errif(!(isExpr(p.peek().Type)), newErr(line, col,
 		"unexpected token '%s' as new value in reassignment statement", p.peek().Literal)) {
-		fmt.Println("reas: ", p.tok)
 		return nil
 	}
 	r.NewValue = p.parseExpr()
@@ -875,7 +888,6 @@ func (p *Parser) parseOperator(isStmt bool) *ast.PrefixExpr {
 	pe.Tok = p.tok // set operator
 	p.move()       // skip operator
 	for p.curnot(token.CLOSING_PAREN) {
-		fmt.Println("loooop 1", p.tok)
 		p.moveif(p.curis(token.NEWLINE))
 		if p.curis(token.CLOSING_PAREN) {
 			break
