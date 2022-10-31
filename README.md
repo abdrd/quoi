@@ -8,11 +8,11 @@ Quoi is an explicitly, and statically typed programming language.
 
 ##### Some code samples
 
-```
+```cpp
 Stdout::println("Hello world")
 ```
 
-```
+```rust
 fun factorial(int n) -> int {
     int product = 1.
     int j = 1.
@@ -27,7 +27,7 @@ fun factorial(int n) -> int {
 Quoi does not have a lot of features, or syntactic sugar.
 
 There are 3 primitive data types: 
-```
+```lisp
 int         ; 64-bit
 bool
 string      ; utf-8 encoded strings
@@ -36,11 +36,11 @@ string      ; utf-8 encoded strings
 ##### Operators
 - Operators in Quoi are prefix operators (like in Lisp).
 - They are enclosed in parenthesis ("like in Lisp" 2).
-```
+```python
 + - * / ' lt lte gt gte 
 and or not
 ```
-```
+```lisp
 (* (+ 1 2) (/ 6 2))         ; result is 9
 (and true true)             ; true
 (not (and true false))      ; true 
@@ -55,7 +55,7 @@ and or not
   - There is a list indexing operator. (```(' list index)```)
     - This operator returns the value stored at that index. To place a new value at that index use ```List::replace(list, index, new_value)```
 
-```
+```lisp
 listof string names = ["Jennifer", "Hasan"].
 listof int nx = [1, 2, 56, 9910].
 
@@ -65,7 +65,7 @@ Stdout::println((' nx 2)) ; prints 56
 <a id="datatypes"></a>
 There are user-defined data types (```datatype```).
 
-```
+```lisp
 ; declaration
 datatype User {
     string name
@@ -83,10 +83,10 @@ string jennifer = (get u name).
 ; setting field values
 ; set operator returns back 'u' with name as "Hasan".
 
-print_User(u). // name = Jennifer, 34
+print_User(u). ; Jennifer, 34
 u = (set u name "Hasan").
 ; don't forget to reassign u; otherwise, u is not changed (well, before that, it is a compilation error; because, set expression is not used.).
-print_User(u). // Hasan, 34
+print_User(u). ; Hasan, 34
 ```
 
 ##### Zero values
@@ -97,29 +97,20 @@ print_User(u). // Hasan, 34
 
 Functions: 
 
-``` 
-; declaration
-fun function_name([type arg,...]) -> return type[,return type2,...] {
-    ...
-    return .
-}
+```rust
+fun hello_world() { }
+fun hello_world() -> { } 
 
-; no return values
-fun hello_world() {
-    
-}
-
-fun greet(string name) {
-    
-}
+fun greet(string name) { }
 
 fun some_func(int a, int b) -> string, bool {
+  return "Hey", true.
 }
 ```
 
 Loops:
 
-```
+```rust
 loop <condition> {
 
 }
@@ -132,7 +123,7 @@ for (int i = 0; i < 10; i++) {
 }
 ```
 Equivalent of this classical loop above: 
-```
+```rust
 int i = 0.
 loop (lt i 10) {
   string msg = String::concat("#", String::from_int(i), "\n").
@@ -142,7 +133,7 @@ loop (lt i 10) {
 ```
 
 Branching:
-```
+```rust
 if <condition> {
 
 } elseif <condition> {
@@ -180,7 +171,7 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
 - No way to make a variable constant, but there is a convention that ```ALL_UPPERCASE``` variables are meant to be constants (like in Python).
 - You can create new blocks that have their own scopes, using ```block```, and ```end``` keywords.
 - Variables in a scope, cannot be accessed outside of said scope. It will raise some kind of a ```ReferenceError``` (like in Javascript).
-  - ```
+  - ```lisp
     int day = 15.
     block 
         int day = 30.
@@ -195,7 +186,7 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
     ```
 - Ability to compose different types to create a compound data type, using the ```datatype``` keyword.
 - There are no methods attached to a data type, but you can just create functions that take in any data type.
-  - ```
+  - ```sml
     datatype City {
         string name
         int founded_in
@@ -214,7 +205,7 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
 - All the code is written in one file (this may change). There is no entry point to the program (a main function), so the instructions just run sequentially, top to bottom. Compiled Go code is in one file.
 - Global variables can be accessed anywhere in the program.
 - No pointers, but values are pass-by-reference; meaning when you pass an argument to a function, you basically pass a pointer to that argument, so the callee can change the argument's value.
-  - ```
+  - ```lisp
     int age = 30.
 
     fun celebrate_birthday(int age) {
@@ -242,11 +233,11 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
 
 Syntax:
 
-```
+```cpp
 <namespace>::<function>().
 ```
 
-```
+```lisp
 ; get the index of the first occurence of character 'e' in string "Hello"
 int idx = String::index("Hello", "e").
 Stdout::print("Index of 'e': ").
