@@ -84,21 +84,6 @@ func print_stmts(t *testing.T, program *ast.Program) {
 	}
 }
 
-/*
-literals,
-	string, identifier, int, bool, list
-datatype,
-block,
-prefix expr
-variable declaration,
-	int, string, bool, list
-reassignment
-function call
-function call from namespace
-return
-loop
-*/
-
 func TestLit1(t *testing.T) {
 	input := `
 			"Hello".
@@ -149,6 +134,17 @@ func TestVarDecl3(t *testing.T) {
 		; listof string a = ["He",]
 		; listof string a = ["He",
 		listof string names = ["Jennifer", "Hasan", "Ali", "Ayşe"].
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
+
+func TestVarDecl4(t *testing.T) {
+	input := `
+		;User u = User {name="Jenny"}.
+		User u, int x = User {name="Jenny"}, 5.
 	`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)
@@ -292,15 +288,14 @@ func TestPrefExpr2(t *testing.T) {
 
 func TestPrefExpr3(t *testing.T) {
 	input := `
-		;User u = User{ name="User 1" }.
+		User u = User{ name="User 1" }.
 		u = (set u name "Jenny"). 
 		Stdout::println( (get u name) ).
 		(gte 5 6 6 ).
-		(get "ha" name).
-		(gte u y).
+		(get u name).
+		(gte x y).
 		(+ a b).
 		(+ aa bb).
-
 		`
 	program, errs, _ := _parse(input)
 	check_error_count(t, errs, 0)

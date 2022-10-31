@@ -223,6 +223,10 @@ func isReturnOrFunctionParamType(tok token.Type) bool {
 //
 // starting from 'int', decide if we should parse it as a *ast.SubsequentVariableDeclarationStatement, or not.
 func isASubseqVariableDecl(p *Parser) bool {
+	var reset = func(p *Parser, ptr uint) {
+		p.ptr = ptr
+		p.tok = p.tokens[p.ptr]
+	}
 	// save ptr here to revert back to the old position of the parser.
 	ptr := p.ptr // current token is a type, or a token.LISTOF.
 	p.moveif(p.curis(token.LISTOF))
@@ -231,26 +235,30 @@ func isASubseqVariableDecl(p *Parser) bool {
 	if p.curnot(token.IDENT) {
 		// in this case, parseStatement will call parseVariableDeclarationStatement, and it will give an error.
 		// we don't care about this here actually.
+		reset(p, ptr)
 		return false
 	}
 	p.move()
 	ok := p.curis(token.COMMA)
-	p.ptr = ptr
-	p.tok = p.tokens[p.ptr]
+	reset(p, ptr)
 	return ok
 }
 
 // dangerously similar to isASubseqVariableDecl.
 func isDatatypeInitialization(p *Parser) bool {
+	var reset = func(p *Parser, ptr uint) {
+		p.ptr = ptr
+		p.tok = p.tokens[p.ptr]
+	}
 	// current: token.IDENT
 	ptr := p.ptr
 	p.move()
 	p.eat(token.NEWLINE)
 	if p.curnot(token.OPENING_CURLY) {
+		reset(p, ptr)
 		return false
 	}
-	p.ptr = ptr
-	p.tok = p.tokens[p.ptr]
+	reset(p, ptr)
 	return true
 }
 
@@ -346,6 +354,16 @@ func (p *Parser) parseStatement() ast.Statement {
 			}
 		case token.DOUBLE_COLON:
 			if stmt := p.parseFunctionCallFromNamespace(identTok, true); stmt != nil {
+				return stmt
+			}
+		case token.IDENT:
+			isSubseq := isASubseqVariableDecl(p)
+			if isSubseq {
+				if stmt := p.parseSubsequentVariableDeclarationStatement(); stmt != nil {
+					return stmt
+				}
+			}
+			if stmt := p.parseVariableDeclarationStatement(); stmt != nil {
 				return stmt
 			}
 		}

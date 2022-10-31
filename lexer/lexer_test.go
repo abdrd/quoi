@@ -524,3 +524,10 @@ func TestLexSimplePrefExpr(t *testing.T) {
 	}
 	printErrs(t, l.Errs)
 }
+
+func Test_2(t *testing.T) {
+	input := `a`
+	l := New(input)
+	tok := l.Next()
+	printTok(t, tok)
+}
