@@ -272,6 +272,16 @@ func isDatatypeInitialization(p *Parser) bool {
 	return true
 }
 
+// also moves if isStmt && !(p.curnot(token.DOT))
+func assertDot(p *Parser, isStmt bool, errmsgf string, args ...interface{}) bool {
+	var res bool
+	if isStmt {
+		res = p.errif(p.curnot(token.DOT), errmsgf, args...)
+		p.moveif(!(res))
+	}
+	return res
+}
+
 func (p *Parser) Parse() *ast.Program {
 	if len(p.lexerErrors) > 0 {
 		for _, e := range p.lexerErrors {
@@ -441,11 +451,8 @@ func (p *Parser) parseStringLiteral(isStmt bool) *ast.StringLiteral {
 	// expression statements need a dot at the end, because they are statements.
 	s := &ast.StringLiteral{Typ: p.tok.Type, Val: p.tok.Literal}
 	p.move()
-	if isStmt {
-		if p.errif(p.curnot(token.DOT), "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
+		return nil
 	}
 	return s
 }
@@ -458,12 +465,8 @@ func (p *Parser) parseIntLiteral(isStmt bool) *ast.IntLiteral {
 	n := atoi(p)
 	i := &ast.IntLiteral{Typ: p.tok.Type, Val: n}
 	p.move()
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
+		return nil
 	}
 	return i
 }
@@ -476,12 +479,8 @@ func (p *Parser) parseBoolLiteral(isStmt bool) *ast.BoolLiteral {
 	b := atob(p)
 	boo := &ast.BoolLiteral{Typ: p.tok.Type, Val: b}
 	p.move()
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
+		return nil
 	}
 	return boo
 }
@@ -493,12 +492,8 @@ func (p *Parser) parseIdentifier(isStmt bool) *ast.Identifier {
 	}
 	i := &ast.Identifier{Tok: p.tok}
 	p.move()
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
+		return nil
 	}
 	return i
 }
@@ -934,12 +929,8 @@ func (p *Parser) parseOperator(isStmt bool) *ast.PrefixExpr {
 	}
 	// current token is token.CLOSING_PAREN
 	p.move()
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s' at the end of prefix expression, where a dot was expected", p.tok.Literal) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s' at the end of prefix expression, where a dot was expected", p.tok.Literal) {
+		return nil
 	}
 	return pe
 }
@@ -990,12 +981,9 @@ func (p *Parser) parseFunctionCall(ident token.Token, isStmt bool, namespace str
 		}
 	}
 end:
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s' at the end of function call expression statement '%s', where a dot was expected", p.tok.Literal, fnName) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s' at the end of function call expression statement '%s', where a dot was expected",
+		p.tok.Literal, fnName) {
+		return nil
 	}
 	return fc
 }
@@ -1106,12 +1094,8 @@ func (p *Parser) parseListLiteral(isStmt bool) *ast.ListLiteral {
 	}
 end:
 	p.move() // skip ]
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
-			return nil
-		}
-		p.move() // skip .
+	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
+		return nil
 	}
 	return l
 }
@@ -1450,12 +1434,8 @@ func (p *Parser) parseDatatypeLiteral(isStmt bool) *ast.DatatypeLiteral {
 		p.eat(token.NEWLINE)
 	}
 	p.move()
-	if isStmt {
-		if p.errif(p.curnot(token.DOT),
-			"unexpected token '%s' at the end of datatype literal '%s' where a dot was expected", p.tok.Literal, literal) {
-			return nil
-		}
-		p.move()
+	if assertDot(p, isStmt, "unexpected token '%s' at the end of datatype literal '%s' where a dot was expected", p.tok.Literal, literal) {
+		return nil
 	}
 	return dl
 }
