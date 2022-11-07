@@ -8,10 +8,6 @@ import (
 	"quoi/token"
 )
 
-// TODO Don't give redundant error messages.
-
-// TODO listofs in subsequent variable declarations
-
 type Err struct {
 	Msg          string
 	Column, Line uint

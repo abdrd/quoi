@@ -653,3 +653,11 @@ func TestDTL2(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestErrorRecovery1(t *testing.T) {
+	input := `
+		int x, { y = 6, 7.
+	`
+	_, errs, _ := _parse(input)
+	print_errs(t, errs)
+}

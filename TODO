@@ -1,5 +1,7 @@
 
 parser/parser.go
-	TODO Don't give redundant error messages.
-	TODO listofs in subsequent variable declarations
 	TODO make this memory efficient
+sema/sema.go
+	TODO type-checking here ?
+sema/symbol.go
+	TODO panicking for now
