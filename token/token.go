@@ -86,7 +86,7 @@ func New(typ Type, lit string, line, col uint) Token {
 	}
 }
 
-// return human friendly name for an arithmetic operator. very limited use case. used for error reporting.
+// return operator sign for an arithmetic operator
 func PrefixExprName(t Type) string {
 	switch t {
 	case ADD:

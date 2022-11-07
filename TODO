@@ -2,6 +2,9 @@
 parser/parser.go
 	TODO make this memory efficient
 sema/sema.go
-	TODO type-checking here ?
+	TODO argument counts for operators
+	TODO these cases below are very similar
+	TODO use errorf
+	TODO use errorf
 sema/symbol.go
 	TODO panicking for now
