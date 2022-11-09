@@ -32,7 +32,7 @@ type Statement interface {
 }
 
 type StringLiteral struct {
-	Typ token.Type
+	Typ token.Token
 	Val string
 }
 
@@ -42,7 +42,7 @@ func (s StringLiteral) String() string {
 func (StringLiteral) statement() {}
 
 type IntLiteral struct {
-	Typ token.Type
+	Typ token.Token
 	Val int64
 }
 
@@ -52,7 +52,7 @@ func (i IntLiteral) String() string {
 func (IntLiteral) statement() {}
 
 type BoolLiteral struct {
-	Typ token.Type
+	Typ token.Token
 	Val bool
 }
 

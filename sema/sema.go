@@ -2,112 +2,136 @@ package sema
 
 import (
 	"fmt"
-	"log"
 	"quoi/ast"
 	"quoi/token"
 )
 
-type Resolver struct {
-	program       *ast.Program
-	stackOfScopes *scopeStack
+type Err struct {
+	Line, Col uint
+	Msg       string
 }
 
-func NewResolver(program *ast.Program) *Resolver {
-	r := &Resolver{program: program}
-	r.stackOfScopes = newScopeStack()
-	return r
+type Typechecker struct {
+	program *ast.Program
+	stack   *scopeStack
+	Errs    []Err
 }
 
-func (r *Resolver) errorf(line, col uint, msgf string, args ...interface{}) {
-	log.Fatalf("Analysis: line:col=%d:%d  %s\n", line, col, fmt.Sprintf(msgf, args...))
+func NewTypechecker(program *ast.Program) *Typechecker {
+	return &Typechecker{program: program, stack: newScopeStack()}
 }
 
-func (r *Resolver) errorf2(msgf string, args ...interface{}) {
-	log.Fatalf("Analysis: %s\n", fmt.Sprintf(msgf, args...))
+func (t *Typechecker) errorf(line, col uint, msgf string, args ...interface{}) {
+	t.Errs = append(t.Errs, Err{
+		Line: line,
+		Col:  col,
+		Msg:  fmt.Sprintf(msgf, args...),
+	})
 }
 
-func (r *Resolver) Resolve() {
-	for _, n := range r.program.Stmts {
+func (t *Typechecker) Typecheck() *CheckedProgram {
+	for _, n := range t.program.Stmts {
 		switch n := n.(type) {
-		case *ast.IntLiteral:
-			r.errorf2("unused int literal '%s'", n.String())
-		case *ast.StringLiteral:
-			r.errorf2("unused string literal '%s'", n.String())
-		case *ast.BoolLiteral:
-			r.errorf2("unused boolean literal '%s'", n.String())
-		case *ast.DatatypeLiteral:
-			r.errorf(n.Tok.Line, n.Tok.Col, "unused datatype literal '%s'", n.String())
-		case *ast.PrefixExpr:
-			r.errorf(n.Tok.Line, n.Tok.Col, "unused prefix expression literal '%s'", n.String())
-		case *ast.BreakStatement:
-			r.errorf(n.Tok.Line, n.Tok.Col, "top-level break statement")
-		case *ast.ContinueStatement:
-			r.errorf(n.Tok.Line, n.Tok.Col, "top-level continue statement")
+		case *ast.BreakStatement, *ast.ContinueStatement, *ast.ElseStatement:
+			t.warnTopLevel(n)
+		case *ast.IntLiteral, *ast.StringLiteral, *ast.BoolLiteral, *ast.DatatypeLiteral, *ast.PrefixExpr:
+			t.warnUnusedExpr(n)
 		case *ast.VariableDeclarationStatement:
-			// ensure that variable type, and variable's value's type are the same
-			r.check_VarDecl(n)
-			vd := &varDecl{VariableDeclarationStatement: n}
-			r.stackOfScopes.addSymbol(vd)
-		case *ast.ListVariableDeclarationStatement:
-			lvd := &listDecl{ListVariableDeclarationStatement: n}
-			r.stackOfScopes.addSymbol(lvd)
+			t.checkVarDecl(n)
 		}
 	}
 }
 
-func (r *Resolver) check_VarDecl(decl *ast.VariableDeclarationStatement) {
-	typ := decl.Tok.Literal
-	xprTyp := ""
-	switch xpr := decl.Value.(type) {
-	case *ast.StringLiteral:
-		xprTyp = "string"
-	case *ast.IntLiteral:
-		xprTyp = "int"
-	case *ast.BoolLiteral:
-		xprTyp = "bool"
-	case *ast.PrefixExpr:
-		r.check_PrefixExpr(xpr, typ)
+func (t *Typechecker) warnTopLevel(n ast.Node) {
+	brk, isbrk := n.(*ast.BreakStatement)
+	cont, iscont := n.(*ast.ContinueStatement)
+	else_, iselse := n.(*ast.ElseStatement)
+	var (
+		token          = "UNHANDLED (TOP LEVEL)"
+		col, line uint = 0, 1
+	)
+	// TODO refactor
+	if isbrk {
+		token = "break"
+		col, line = brk.Tok.Col, brk.Tok.Line
+	} else if iscont {
+		token = "continue"
+		col, line = cont.Tok.Col, cont.Tok.Line
+	} else if iselse {
+		token = "else"
+		col, line = else_.Tok.Col, else_.Tok.Line
+	}
+	t.errorf(line, col, "forbidden top-level '%s' statement", token)
+}
+
+func (t *Typechecker) warnUnusedExpr(n ast.Node) {
+	// TODO refactor
+	// reflection ?
+	int_, isint := n.(*ast.IntLiteral)
+	string_, isstr := n.(*ast.StringLiteral)
+	bool_, isbool := n.(*ast.BoolLiteral)
+	datat, isdatat := n.(*ast.DatatypeLiteral)
+	prefexpr, isprefexpr := n.(*ast.PrefixExpr)
+	var (
+		token          = "UNHANDLED (UNUSED EXPR)"
+		line, col uint = 0, 1
+	)
+	if isint {
+		token = "integer"
+		line, col = int_.Typ.Line, int_.Typ.Col
+	} else if isstr {
+		token = "string"
+		line, col = string_.Typ.Line, string_.Typ.Col
+	} else if isbool {
+		token = "boolean"
+		line, col = bool_.Typ.Line, bool_.Typ.Col
+	} else if isdatat {
+		token = "data type"
+		line, col = datat.Tok.Line, datat.Tok.Col
+	} else if isprefexpr {
+		token = "prefix expression"
+		line, col = prefexpr.Tok.Line, prefexpr.Tok.Col
+	}
+	t.errorf(line, col, "unused %s literal", token)
+}
+
+func (t *Typechecker) typeOf(tok token.Token) VarType {
+	lc := lineColStruct{Line: tok.Line, Col: tok.Col}
+	switch tok.Type {
+	case token.INTKW:
+		return TypeInt{lc}
+	case token.STRINGKW:
+		return TypeString{lc}
+	case token.BOOLKW:
+		return TypeBool{lc}
+	case token.DATATYPE:
+		return TypeDatatype{lineColStruct: lc, Datatype: tok.Literal}
 	default:
-		if typ != xprTyp {
-			r.errorf(decl.Tok.Line, decl.Tok.Col, "mismatched types '%s', and '%s'", typ, xprTyp)
-		}
+		panic("typeOf: UNHANDLED : " + tok.Literal)
 	}
 }
 
-func (r *Resolver) check_PrefixExpr(xpr *ast.PrefixExpr, wantTyp string) {
-	op := xpr.Tok.Type
-	returnTypeOfOp := ""
-	switch op {
-	// TODO argument counts for operators
-	// TODO these cases below are very similar
-	case token.ADD, token.MINUS, token.MUL, token.DIV, token.LT, token.LTE, token.GT, token.GTE:
-		returnTypeOfOp = "int"
-		for _, v := range xpr.Args {
-			switch vTyp := v.(type) {
-			case *ast.IntLiteral:
-				continue
-			case *ast.PrefixExpr:
-				r.check_PrefixExpr(vTyp, "int")
-			default:
-				// TODO use errorf
-				r.errorf2("invalid '%s' operand for '%s' operator", vTyp.String(), token.PrefixExprName(op))
-			}
-		}
-	case token.AND, token.OR, token.NOT:
-		returnTypeOfOp = "bool"
-		for _, v := range xpr.Args {
-			switch vTyp := v.(type) {
-			case *ast.BoolLiteral:
-				continue
-			case *ast.PrefixExpr:
-				r.check_PrefixExpr(vTyp, "bool")
-			default:
-				// TODO use errorf
-				r.errorf2("invalid '%s' operand for '%s' operator", vTyp.String(), token.PrefixExprName(op))
-			}
-		}
+func (t *Typechecker) exprOf(expr ast.Expr) CheckedExpr {
+	switch expr := expr.(type) {
+	case *ast.IntLiteral:
+		return &IntExpr{lineColStruct: lineColStruct{Line: expr.Typ.Line, Col: expr.Typ.Col}}
+	case *ast.StringLiteral:
+		return &StringExpr{lineColStruct: lineColStruct{Line: expr.Typ.Line, Col: expr.Typ.Col}}
+	case *ast.BoolLiteral:
+		return &BoolExpr{lineColStruct: lineColStruct{Line: expr.Typ.Line, Col: expr.Typ.Col}}
+	default:
+		panic("exprOf: UNHANDLED : " + expr.String())
 	}
-	if returnTypeOfOp != wantTyp {
-		r.errorf(xpr.Tok.Line, xpr.Tok.Col, "mismatched types '%s' and '%s'", wantTyp, returnTypeOfOp)
+}
+
+func (t *Typechecker) checkVarDecl(decl *ast.VariableDeclarationStatement) /*no return for now */ {
+	cv := CheckedVarDecl{Name: decl.Ident}
+	cv.Type = t.typeOf(decl.Tok)
+	cv.Value = t.exprOf(decl.Value)
+	switch t := cv.Type.(type) {
+	case TypeInt:
+		if _, ok := cv.Value.(*IntExpr); !(ok) {
+			//
+		}
 	}
 }
