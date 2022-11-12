@@ -6,12 +6,12 @@ import (
 )
 
 type Err struct {
-	Line, Col uint
-	Msg       string
+	Line, Column uint
+	Msg          string
 }
 
 func newErr(line, col uint, msgf string, args ...interface{}) Err {
-	return Err{Line: line, Col: col, Msg: fmt.Sprintf(msgf, args...)}
+	return Err{Line: line, Column: col, Msg: fmt.Sprintf(msgf, args...)}
 }
 
 // implement `error` interface to be able to return nil when we need to return Err.
@@ -23,6 +23,10 @@ type Analyzer struct {
 	program    *ast.Program
 	scopeStack *ScopeStack
 	Errs       []Err
+
+	// -------------- state ------------
+	inFunctionDeclaration,
+	hasSeenReturn bool
 }
 
 func NewAnalyzer(program *ast.Program) *Analyzer {
@@ -43,7 +47,9 @@ func (a *Analyzer) FirstPass() {
 				a.errorf(n.Tok.Line, n.Tok.Col, err.Error())
 				return
 			}
-			a.scopeStack.AddFunc(n.Name.String(), n)
+			if err := a.scopeStack.AddFunc(n.Name.String(), n); err != nil {
+				a.errorf(n.Tok.Line, n.Tok.Col, err.Error())
+			}
 		}
 	}
 }
@@ -63,19 +69,25 @@ func typeOfExpr(expr ast.Expr) string {
 }
 
 func (a *Analyzer) typecheckFunctionDeclaration(decl *ast.FunctionDeclarationStatement) error {
+	a.inFunctionDeclaration = true
 	// check return statements inside the function body.
 	if err := a.typecheckFunctionReturnCounts(decl); err != nil {
+		//a.inFunctionDeclaration = false
 		return err
 	}
-	return a.typecheckFunctionReturnTypes(decl)
+	err := a.typecheckFunctionReturnTypes(decl)
+	a.inFunctionDeclaration = false
+	a.hasSeenReturn = false
+	return err
 }
 
 func (a *Analyzer) assertReturnStmtReturnCount(stmt *ast.ReturnStatement, returnCount int) error {
+	a.hasSeenReturn = true
 	rtStmtRtCount := len(stmt.ReturnValues)
 	if rtStmtRtCount < returnCount {
-		return Err{Line: stmt.Tok.Line, Col: stmt.Tok.Col, Msg: "missing return value"}
+		return Err{Line: stmt.Tok.Line, Column: stmt.Tok.Col, Msg: "missing return value"}
 	} else if rtStmtRtCount > returnCount {
-		return Err{Line: stmt.Tok.Line, Col: stmt.Tok.Col, Msg: "excessive return value"}
+		return Err{Line: stmt.Tok.Line, Column: stmt.Tok.Col, Msg: "excessive return value"}
 	}
 	return nil
 }
@@ -83,7 +95,7 @@ func (a *Analyzer) assertReturnStmtReturnCount(stmt *ast.ReturnStatement, return
 func (a *Analyzer) typecheckFunctionReturnCounts(decl *ast.FunctionDeclarationStatement) (err error) {
 	fReturnCount := decl.ReturnCount
 	if len(decl.Stmts) == 0 && fReturnCount > 0 {
-		return Err{Line: decl.Tok.Line, Col: decl.Tok.Col, Msg: "missing return statement"}
+		return Err{Line: decl.Tok.Line, Column: decl.Tok.Col, Msg: "missing return statement"}
 	}
 	for _, n := range decl.Stmts {
 		switch n := n.(type) {
@@ -101,6 +113,9 @@ func (a *Analyzer) typecheckFunctionReturnCounts(decl *ast.FunctionDeclarationSt
 			}
 		}
 	}
+	if a.inFunctionDeclaration && !(a.hasSeenReturn) {
+		a.errorf(decl.Tok.Line, decl.Tok.Col, "missing return statement")
+	}
 	return
 }
 
@@ -113,6 +128,10 @@ func (a *Analyzer) assertIfStmtReturnCount(stmt *ast.IfStatement, returnCount in
 			}
 		case *ast.IfStatement:
 			if err := a.assertIfStmtReturnCount(s, returnCount); err != nil {
+				return err
+			}
+		case *ast.BlockStatement:
+			if err := a.assertBlockStmtReturnCount(s, returnCount); err != nil {
 				return err
 			}
 		}
