@@ -1,10 +1,6 @@
 
+analyzer/analyzer.go
+	TODO lists
+	TODO add a `Pos()` method to `ast.Expr` interface, and return an `Err` here.
 parser/parser.go
 	TODO make this memory efficient
-sema/sema.go
-	TODO argument counts for operators
-	TODO these cases below are very similar
-	TODO use errorf
-	TODO use errorf
-sema/symbol.go
-	TODO panicking for now

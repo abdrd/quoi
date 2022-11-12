@@ -6,12 +6,14 @@ import (
 )
 
 type SymbolTable struct {
-	vars map[string]*ast.VariableDeclarationStatement
+	vars  map[string]*ast.VariableDeclarationStatement
+	funcs map[string]*ast.FunctionDeclarationStatement
 }
 
 func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
-		vars: make(map[string]*ast.VariableDeclarationStatement),
+		vars:  make(map[string]*ast.VariableDeclarationStatement),
+		funcs: make(map[string]*ast.FunctionDeclarationStatement),
 	}
 }
 
@@ -28,6 +30,21 @@ func (s *SymbolTable) addVar(ident string, decl *ast.VariableDeclarationStatemen
 		return fmt.Errorf("variable '%s' is already defined", ident)
 	}
 	s.vars[ident] = decl
+	return nil
+}
+
+func (s *SymbolTable) getFunc(ident string) *ast.FunctionDeclarationStatement {
+	if v, found := s.funcs[ident]; found {
+		return v
+	}
+	return nil
+}
+
+func (s *SymbolTable) addFunc(ident string, decl *ast.FunctionDeclarationStatement) error {
+	if v := s.getFunc(ident); v != nil {
+		return fmt.Errorf("function '%s' is already declared", ident)
+	}
+	s.funcs[ident] = decl
 	return nil
 }
 
@@ -87,4 +104,13 @@ func (ss *ScopeStack) GetVar(ident string) *ast.VariableDeclarationStatement {
 // add variable to the symbol table of the scope that is at the top of ss.Scopes
 func (ss *ScopeStack) AddVar(ident string, decl *ast.VariableDeclarationStatement) error {
 	return ss.Scopes[len(ss.Scopes)-1].symbolTable.addVar(ident, decl)
+}
+
+func (ss *ScopeStack) GetFunc(ident string) *ast.FunctionDeclarationStatement {
+	// look at only the global scope, because function can only be declared at the top level.
+	return ss.Scopes[0].symbolTable.getFunc(ident)
+}
+
+func (ss *ScopeStack) AddFunc(ident string, decl *ast.FunctionDeclarationStatement) error {
+	return ss.Scopes[0].symbolTable.addFunc(ident, decl)
 }
