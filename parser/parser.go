@@ -445,7 +445,7 @@ func (p *Parser) parseStringLiteral(isStmt bool) *ast.StringLiteral {
 	}
 	// if isStmt, then this is an expression statement.
 	// expression statements need a dot at the end, because they are statements.
-	s := &ast.StringLiteral{Typ: p.tok.Type, Val: p.tok.Literal}
+	s := &ast.StringLiteral{Typ: p.tok, Val: p.tok.Literal}
 	p.move()
 	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
 		return nil
@@ -459,7 +459,7 @@ func (p *Parser) parseIntLiteral(isStmt bool) *ast.IntLiteral {
 		return nil
 	}
 	n := atoi(p)
-	i := &ast.IntLiteral{Typ: p.tok.Type, Val: n}
+	i := &ast.IntLiteral{Typ: p.tok, Val: n}
 	p.move()
 	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
 		return nil
@@ -473,7 +473,7 @@ func (p *Parser) parseBoolLiteral(isStmt bool) *ast.BoolLiteral {
 		return nil
 	}
 	b := atob(p)
-	boo := &ast.BoolLiteral{Typ: p.tok.Type, Val: b}
+	boo := &ast.BoolLiteral{Typ: p.tok, Val: b}
 	p.move()
 	if assertDot(p, isStmt, "unexpected token '%s'. need a dot at the end of a statement", p.tok.Literal) {
 		return nil
