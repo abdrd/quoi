@@ -88,3 +88,35 @@ func TestFP2(t *testing.T) {
 	`
 	_DO(t, input)
 }
+
+func TestFP3(t *testing.T) {
+	input := `
+		fun a() -> int {
+			return 1.
+		}
+
+		fun b() -> int, string {
+			return 1, "hello".	
+		}
+
+		fun c() -> {
+			int i = 0.
+			loop true {
+				if (= i 150) { break. }
+				string msg = String::concat("#", String::from_int(i), ": Hello!").
+				Stdout::println(msg).
+				i = (+ i 1).
+			}
+		}
+	`
+	_DO(t, input)
+}
+
+func TestFP4(t *testing.T) {
+	input := `
+		fun function1()->int{
+			PRINT(123).
+		}
+	`
+	_DO(t, input)
+}

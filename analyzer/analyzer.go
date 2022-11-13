@@ -52,6 +52,7 @@ func (a *Analyzer) FirstPass() {
 			}
 		}
 	}
+	fmt.Println(a.scopeStack.GetFunc("function1").String())
 }
 
 func typeOfExpr(expr ast.Expr) string {
@@ -72,13 +73,14 @@ func (a *Analyzer) typecheckFunctionDeclaration(decl *ast.FunctionDeclarationSta
 	a.inFunctionDeclaration = true
 	// check return statements inside the function body.
 	if err := a.typecheckFunctionReturnCounts(decl); err != nil {
-		//a.inFunctionDeclaration = false
 		return err
 	}
-	err := a.typecheckFunctionReturnTypes(decl)
+	if err := a.typecheckFunctionReturnTypes(decl); err != nil {
+		return err
+	}
 	a.inFunctionDeclaration = false
 	a.hasSeenReturn = false
-	return err
+	return nil
 }
 
 func (a *Analyzer) assertReturnStmtReturnCount(stmt *ast.ReturnStatement, returnCount int) error {
@@ -113,8 +115,8 @@ func (a *Analyzer) typecheckFunctionReturnCounts(decl *ast.FunctionDeclarationSt
 			}
 		}
 	}
-	if a.inFunctionDeclaration && !(a.hasSeenReturn) {
-		a.errorf(decl.Tok.Line, decl.Tok.Col, "missing return statement")
+	if decl.ReturnCount > 0 && a.inFunctionDeclaration && !(a.hasSeenReturn) {
+		return newErr(decl.Tok.Line, decl.Tok.Col, "missing return statement")
 	}
 	return
 }
