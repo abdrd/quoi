@@ -2,5 +2,7 @@
 analyzer/analyzer.go
 	TODO lists
 	TODO add a `Pos()` method to `ast.Expr` interface, and return an `Err` here.
+generator/codegen.go
+	TODO list literal
 parser/parser.go
 	TODO make this memory efficient
