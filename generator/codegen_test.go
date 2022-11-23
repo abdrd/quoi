@@ -36,6 +36,8 @@ func Test2(t *testing.T) {
 		PRINT( (* 1 2 3 4 5 6 7 8 ) ).
 		PRINT( (/ 1 2 3 4 5 6 7 8 ) ).
 		PRINT( (- 1 2 3 4 5 6 7 8 ) ).
+
+		PRINT ( (- (* 4 5 (+ 1 2)) 6 ) ).
 	`
 	_generate(input)
 }

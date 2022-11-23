@@ -9,8 +9,8 @@ import (
 
 // Quoi -> Go
 type Generator struct {
-	program      *ast.Program
-	header, body strings.Builder
+	program            *ast.Program
+	header, main, body strings.Builder
 }
 
 func New(program *ast.Program) *Generator {
@@ -52,6 +52,11 @@ func shouldPutComma(idx, length int) bool {
 // g.body.WriteString
 func (g *Generator) w(str string) {
 	g.body.WriteString(str)
+}
+
+// g.main.WriteString
+func (g *Generator) wm(str string) {
+	g.main.WriteString(str)
 }
 
 func (g *Generator) Generate() {
@@ -268,7 +273,7 @@ func (g *Generator) genExprList(exprs []ast.Expr) {
 }
 
 func (g *Generator) genFunCall(call *ast.FunctionCall) {
-	g.w(call.Ident.String())
+	g.wm(call.Ident.String())
 	g.sym('(')
 	g.genExprList(call.Args)
 	g.sym(')')
