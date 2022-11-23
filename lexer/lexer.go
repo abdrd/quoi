@@ -296,6 +296,7 @@ func lexSymbol(l *Lexer) token.Token {
 			l.state = stateStart
 			return token.New(token.ARROW, lit, line, start)
 		}
+		l.state = stateStart
 		return token.New(token.MINUS, lit, line, col)
 	}
 	if l.ch == ':' {
