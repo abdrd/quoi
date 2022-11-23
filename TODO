@@ -2,7 +2,15 @@
 analyzer/analyzer.go
 	TODO lists
 	TODO add a `Pos()` method to `ast.Expr` interface, and return an `Err` here.
+cmd/cmd.go
+	TODO analyzer
 generator/codegen.go
 	TODO list literal
+main.go
+	TODO emit flags
 parser/parser.go
 	TODO make this memory efficient
+runner/runner.go
+	TODO emit AST
+	TODO emit AST")
+	TODO access stderr (error messages) of `go` process
