@@ -9,8 +9,8 @@ import (
 
 // Quoi -> Go
 type Generator struct {
-	program      *ast.Program
-	header, body strings.Builder
+	program            *ast.Program
+	header, main, body strings.Builder
 }
 
 func New(program *ast.Program) *Generator {
@@ -54,10 +54,17 @@ func (g *Generator) w(str string) {
 	g.body.WriteString(str)
 }
 
+// g.main.WriteString
+func (g *Generator) wm(str string) {
+	g.main.WriteString(str)
+}
+
 func (g *Generator) Generate() {
 	for _, v := range g.program.Stmts {
 		g.genStatement(v)
 	}
+	g.header.WriteByte(')')
+	g.header.WriteByte('\n')
 }
 
 func (g *Generator) Code() string {
@@ -66,7 +73,7 @@ func (g *Generator) Code() string {
 }
 
 func (g *Generator) genImport(pkg string) {
-	g.header.WriteString(fmt.Sprintf("\"%s\"\n", pkg))
+	g.header.WriteString(fmt.Sprintf("\"%s\"", pkg))
 }
 
 func (g *Generator) genParam(param ast.FunctionParameter) {
@@ -82,7 +89,6 @@ func (g *Generator) genParam(param ast.FunctionParameter) {
 
 func (g *Generator) genFuncDecl(fn *ast.FunctionDeclarationStatement) {
 	g.w("func ")
-	g.ws()
 	g.w(fn.Name.String())
 	g.ws()
 	if len(fn.Params) > 0 {
@@ -106,17 +112,21 @@ func (g *Generator) genFuncDecl(fn *ast.FunctionDeclarationStatement) {
 			} else {
 				g.w(v.Tok.Literal)
 			}
-			g.commaif(shouldPutComma(i, len(fn.Params)))
+			g.commaif(shouldPutComma(i, len(fn.ReturnTypes)))
 		}
 		if needParens {
 			g.sym(')')
 		}
 	}
+	g.ws()
 	g.sym('{')
 	g.newline()
 	for _, v := range fn.Stmts {
 		g.genStatement(v)
 	}
+	g.newline()
+	g.sym('}')
+	g.newline()
 }
 
 func (g *Generator) genStatement(s ast.Statement) {
@@ -226,7 +236,13 @@ func (g *Generator) genPrefExpr(expr *ast.PrefixExpr) {
 }
 
 func (g *Generator) genListIndex(expr *ast.PrefixExpr) {}
-func (g *Generator) genNotOp(expr *ast.PrefixExpr)     {}
+
+func (g *Generator) genNotOp(expr *ast.PrefixExpr) {
+	g.sym('!')
+	g.sym('(')
+	g.genExpr(expr.Args[0])
+	g.sym(')')
+}
 
 func (g *Generator) genVarDecl(decl *ast.VariableDeclarationStatement) {
 	g.w("var ")
@@ -257,10 +273,11 @@ func (g *Generator) genExprList(exprs []ast.Expr) {
 }
 
 func (g *Generator) genFunCall(call *ast.FunctionCall) {
-	g.w(call.Ident.String())
+	g.wm(call.Ident.String())
 	g.sym('(')
 	g.genExprList(call.Args)
 	g.sym(')')
+	g.newline()
 }
 
 func (g *Generator) genIfStmt(stmt *ast.IfStatement) {
@@ -318,7 +335,7 @@ func (g *Generator) genReassignment(reas *ast.ReassignmentStatement) {
 }
 
 func (g *Generator) genReturn(ret *ast.ReturnStatement) {
-	g.w("return ")
+	g.w("\treturn ")
 	g.genExprList(ret.ReturnValues)
 }
 
