@@ -6,20 +6,44 @@ import (
 )
 
 type Err struct {
-	Line, Column int
+	Line, Column uint
 	Msg          string
 }
 
 type Analyzer struct {
 	program *ast.Program
+	curExpr *ast.Expr
+	env     *ScopeStack
 	Errs    []Err
 }
 
 func New(program *ast.Program) *Analyzer {
-	return &Analyzer{program: program}
+	return &Analyzer{program: program, curExpr: nil, env: NewScopeStack()}
 }
 
-func (a *Analyzer) errorf(line, col int, msgf string, args ...interface{}) {
+func fnParamTypeRepr(param ast.FunctionParameter) string {
+	res := ""
+	if param.IsList {
+		res = "list-"
+		res += param.TypeOfList.Literal
+		return res
+	}
+	res += param.Tok.Literal
+	return res
+}
+
+func fnReturnTypeRepr(ret ast.FunctionReturnType) string {
+	res := ""
+	if ret.IsList {
+		res = "list-"
+		res += ret.TypeOfList.Literal
+		return res
+	}
+	res += ret.Tok.Literal
+	return res
+}
+
+func (a *Analyzer) errorf(line, col uint, msgf string, args ...interface{}) {
 	a.Errs = append(a.Errs, Err{
 		Line:   line,
 		Column: col,
@@ -27,56 +51,39 @@ func (a *Analyzer) errorf(line, col int, msgf string, args ...interface{}) {
 	})
 }
 
-/*
-	IR (Intermediate Representation)
------------------------------------------
-	declarations
-
-		globals :
-			a		int						5
-			b 		string  				"hello"
-			c 		bool					true
-			greet 	fn (string -- string) 1 :
-				name string $1
-				x_51f string String::concat("Hello ", name)
-				if (lt 5 6) :
-					y_T61 string "Hello"
-					return y_T61.
-				return x_51f
-
-			d list-string 3		["A", "B", "C"]
-
-			Int::from_string fn (string -- int) 1 :
-
-			x 	fn (list-string -- string) 1 :
-				@listindex $1 0
-			add fn (int int -- int) 1 :
-				gyF_1 int	 @add $1 $2
-				return gyF_1
-*/
-
-func (a *Analyzer) Analyze() *IRProgram {
-	program := &IRProgram{}
+// first pass
+func (a *Analyzer) registerFunctionsAndDatatypes() {
 	for _, s := range a.program.Stmts {
 		switch s := s.(type) {
-		case *ast.VariableDeclarationStatement:
-			if ir := a.analyzeVarDecl(s); ir != nil {
-				program.Push(ir)
+		case *ast.FunctionDeclarationStatement:
+			if err := a.registerFuncSignature(s); err != nil {
+				a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
 			}
-		case *ast.ListVariableDeclarationStatement:
-			if ir := a.analyzeListVarDecl(s); ir != nil {
-				program.Push(ir)
+		case *ast.DatatypeDeclaration:
+			if err := a.registerDatatype(s); err != nil {
+				a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
 			}
 		}
 	}
 }
 
-func (a *Analyzer) analyzeVarDecl(s *ast.VariableDeclarationStatement) *IRVariable {
-	ir := &IRVariable{}
-	ir.Name = s.Ident.String()
-	panic(":)")
+func (a *Analyzer) registerFuncSignature(s *ast.FunctionDeclarationStatement) error {
+	ir := &IRFunction{Name: s.Name.String(), TakesCount: len(s.Params), ReturnsCount: len(s.ReturnTypes)}
+	for _, v := range s.Params {
+		ir.Takes = append(ir.Takes, fnParamTypeRepr(v))
+	}
+	for _, v := range s.ReturnTypes {
+		ir.Returns = append(ir.Returns, fnReturnTypeRepr(v))
+	}
+	return a.env.AddFunc(ir)
 }
 
-func (a *Analyzer) analyzeListVarDecl(s *ast.ListVariableDeclarationStatement) *IRVariable {
-	panic(":))")
+func (a *Analyzer) registerDatatype(s *ast.DatatypeDeclaration) error {
+	ir := &IRDatatype{}
+	return a.env.AddDatatype(ir)
+}
+
+func (a *Analyzer) Analyze() *IRProgram {
+	a.registerFunctionsAndDatatypes()
+	return nil
 }

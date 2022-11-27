@@ -51,6 +51,16 @@ type IRReturn struct {
 	ReturnCount  int
 }
 
+type IRDatatypeField struct {
+	Type, Name string
+}
+
+type IRDatatype struct {
+	Name       string
+	FieldCount int
+	Fields     []IRDatatypeField
+}
+
 // EXPRESSIONS
 
 type IRVariableReference struct {
@@ -107,6 +117,7 @@ func (IRElse) irStmt()                      {}
 func (IRReturn) irStmt()                    {}
 func (IRFunctionCallFromNamespace) irStmt() {}
 func (IRFunctionCall) irStmt()              {}
+func (IRDatatype) irStmt()                  {}
 
 /* ********** IR EXPRESSIONS **************** */
 func (IRVariableReference) irExpr()         {}
