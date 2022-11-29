@@ -812,6 +812,7 @@ func (p *Parser) parseDatatypeField() *ast.DatatypeField {
 	// require newline at the end of every field
 	f := &ast.DatatypeField{Tok: p.tok}
 	switch p.tok.Type {
+	// TODO lists
 	case token.INTKW, token.STRINGKW, token.BOOLKW, token.IDENT:
 		if identOk, peek := p.expect(token.IDENT), p.peek(); !(identOk) {
 			p.errorf(peek.Line, peek.Col, "missing identifier: expected an identifier in datatype field")

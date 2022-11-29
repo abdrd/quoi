@@ -2,9 +2,10 @@
 - [ ] Fix column, and line reporting.
 
 ### Parser
-- [ ] Context-aware error recovery.
+- [ ] Context-aware error recovery
 - [ ] Refactor
 - [ ] Embed lexer instead of embedding a token stream for memory efficiency.
+- [ ] List types in datatype fields
 
 ### Semantic analyzer
 - [ ] Refactor `sema/symbol.go`

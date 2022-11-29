@@ -136,3 +136,7 @@ func (ss *ScopeStack) AddFunc(decl *IRFunction) error {
 func (ss *ScopeStack) AddDatatype(decl *IRDatatype) error {
 	return ss.Scopes[0].symbolTable.addDatatype(decl)
 }
+
+func (ss *ScopeStack) GetDatatype(ident string) *IRDatatype {
+	return ss.Scopes[0].symbolTable.getDatatype(ident)
+}
