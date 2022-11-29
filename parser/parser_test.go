@@ -661,3 +661,15 @@ func TestErrorRecovery1(t *testing.T) {
 	_, errs, _ := _parse(input)
 	print_errs(t, errs)
 }
+
+func TestDatatypeListField(t *testing.T) {
+	input := `
+		datatype X {
+			listof string y
+		}
+	`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}
