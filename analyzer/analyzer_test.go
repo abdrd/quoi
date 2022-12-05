@@ -63,7 +63,7 @@ func TestTC1(t *testing.T) {
 		}},
 	}}
 	a := New(input)
-	res := a.typecheck(a.program.Stmts[0], "int")
+	res := a.typecheckExpr(a.program.Stmts[0], "int")
 	fmt.Println(res)
 }
 
@@ -76,6 +76,35 @@ func TestTC2(t *testing.T) {
 		}},
 	}}
 	a := New(input)
-	res := a.typecheck(a.program.Stmts[0], "")
+	res := a.typecheckExpr(a.program.Stmts[0], "")
 	fmt.Println(res)
+}
+
+func TestTC3(t *testing.T) {
+	input := `
+		;int a = 5.
+		;int b = "string".
+		;int c = (+ 1 2).
+		;int d = (+ 1 2 3 (* 2 3)).
+		;int e = (* "hey" (+ 1 2)).
+		;bool aa = (= "hello" "hello" "Hi").
+		;bool ab = (= 4 "hey").
+		;bool ac = (= "hello" "hi" (+ 4 5)).
+		;bool ad = (not (not (not (+ 2 2)))).
+		;bool ae = (and true (+ "hello" " world")).
+		;string aaa = "hello".
+		;string aab = (= "hey" "Hey").
+		int a = (not false).
+		`
+	// TODO string aab = (= "hey" "Hey").
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("analyzer err: %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	t.Logf("program: \n")
+	t.Logf("%s\n", program)
 }

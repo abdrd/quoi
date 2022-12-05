@@ -11,6 +11,16 @@ type Err struct {
 	Msg          string
 }
 
+func (e Err) Error() string { return e.Msg }
+
+func newErr(line, col uint, msgf string, args ...interface{}) Err {
+	return Err{
+		Line:   line,
+		Column: col,
+		Msg:    fmt.Sprintf(msgf, args...),
+	}
+}
+
 type Analyzer struct {
 	program *ast.Program
 	curExpr *ast.Expr
@@ -22,12 +32,25 @@ func New(program *ast.Program) *Analyzer {
 	return &Analyzer{program: program, curExpr: nil, env: NewScopeStack()}
 }
 
+const (
+	TypeInt    = "int"
+	TypeString = "string"
+	TypeBool   = "bool"
+)
+
+var (
+	TypeDatatype = func(dt string) string {
+		return dt
+	}
+	TypeList = func(listType string) string {
+		return "list-" + listType
+	}
+)
+
 func fnParamTypeRepr(param ast.FunctionParameter) string {
 	res := ""
 	if param.IsList {
-		res = "list-"
-		res += param.TypeOfList.Literal
-		return res
+		return TypeList(param.TypeOfList.Literal)
 	}
 	res += param.Tok.Literal
 	return res
@@ -36,9 +59,7 @@ func fnParamTypeRepr(param ast.FunctionParameter) string {
 func fnReturnTypeRepr(ret ast.FunctionReturnType) string {
 	res := ""
 	if ret.IsList {
-		res = "list-"
-		res += ret.TypeOfList.Literal
-		return res
+		return TypeList(ret.TypeOfList.Literal)
 	}
 	res += ret.Tok.Literal
 	return res
@@ -99,48 +120,124 @@ func (a *Analyzer) Analyze() *IRProgram {
 			}
 		}
 	}
+	return program
+}
+
+func (a *Analyzer) typecheckExpr(expr ast.Expr, expectedType string) error {
+	switch expr := expr.(type) {
+	case *ast.IntLiteral:
+		if ok := expectedType == TypeInt; !(ok) {
+			return newErr(expr.Typ.Line, expr.Typ.Col, "expected %s, not int", expectedType)
+		}
+		return nil
+	case *ast.BoolLiteral:
+		if ok := expectedType == TypeBool; !(ok) {
+			return newErr(expr.Typ.Line, expr.Typ.Col, "expected %s, not bool", expectedType)
+		}
+		return nil
+	case *ast.StringLiteral:
+		if ok := expectedType == TypeString; !(ok) {
+			return newErr(expr.Typ.Line, expr.Typ.Col, "expected %s, not string", expectedType)
+		}
+		return nil
+	case *ast.PrefixExpr:
+		if err := a.assurePrefExprReturnType(expr, expectedType); err != nil {
+			return err
+		}
+		return a.typecheckOperator(expr)
+	}
+	panic("typecheckExpr UNIMPLEMENTED " + expr.String() + expectedType)
+	//return nil
+}
+
+func (a *Analyzer) typecheckOperator(expr *ast.PrefixExpr) error {
+	switch expr.Tok.Type {
+	case token.ADD, token.EQUAL:
+		if len(expr.Args) < 2 {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "not enough arguments to '%s' operator", token.PrefixExprName(expr.Tok.Type))
+		}
+		err := a.typecheckExpr(expr.Args[0], TypeInt)
+		isInt := err == nil
+		if isInt {
+			// expect all args to be of type 'int'
+			for _, arg := range expr.Args {
+				if pref, isPref := arg.(*ast.PrefixExpr); isPref {
+					if err := a.assurePrefExprReturnType(pref, TypeInt); err != nil {
+						return err
+					}
+				}
+				if err := a.typecheckExpr(arg, TypeInt); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		err = a.typecheckExpr(expr.Args[0], TypeString)
+		isStr := err == nil
+		if isStr {
+			// expect all args to be of type 'string'
+			for _, arg := range expr.Args {
+				if pref, isPref := arg.(*ast.PrefixExpr); isPref {
+					if err := a.assurePrefExprReturnType(pref, TypeString); err != nil {
+						return err
+					}
+				}
+				if err := a.typecheckExpr(arg, TypeString); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		return newErr(expr.Tok.Line, expr.Tok.Col, "illegal type of operand type for '%s' operator", token.PrefixExprName(expr.Tok.Type))
+	case token.MINUS, token.MUL, token.DIV, token.LT, token.LTE, token.GT, token.GTE:
+		if len(expr.Args) < 2 {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "not enough arguments to '%s' operator", token.PrefixExprName(expr.Tok.Type))
+		}
+		if err := a.typecheckExpr(expr.Args[0], TypeInt); err != nil {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected an 'int' as operand type for '%s' operator", token.PrefixExprName(expr.Tok.Type))
+		}
+		for _, arg := range expr.Args {
+			if err := a.typecheckExpr(arg, TypeInt); err != nil {
+				return err
+			}
+		}
+		return nil
+	case token.AND, token.OR:
+		if len(expr.Args) < 2 {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "not enough arguments to '%s' operator", token.PrefixExprName(expr.Tok.Type))
+		}
+		if err := a.typecheckExpr(expr.Args[0], TypeBool); err != nil {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected a 'bool' as operand type for '%s' operator", token.PrefixExprName(expr.Tok.Type))
+		}
+		for _, arg := range expr.Args {
+			if err := a.typecheckExpr(arg, TypeBool); err != nil {
+				return err
+			}
+		}
+		return nil
+	case token.NOT:
+		if len(expr.Args) != 1 {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "'not' operator needs exactly one (1) argument")
+		}
+		return a.typecheckExpr(expr.Args[0], TypeBool)
+	}
 	return nil
 }
 
-func (a *Analyzer) typecheck(expr ast.Expr, expectedType string) bool {
-	switch expr := expr.(type) {
-	case *ast.IntLiteral:
-		return expectedType == "int"
-	case *ast.BoolLiteral:
-		return expectedType == "bool"
-	case *ast.StringLiteral:
-		return expectedType == "string"
-	case *ast.PrefixExpr:
-		switch expr.Tok.Type {
-		case token.ADD:
-			if len(expr.Args) < 2 {
-				a.errorf(expr.Tok.Line, expr.Tok.Col, "not enough arguments to '+' operator")
-				return false
-			}
-			_, isint := expr.Args[0].(*ast.IntLiteral)
-			_, isstr := expr.Args[0].(*ast.StringLiteral)
-			if !(isint) && !(isstr) {
-				// TODO return an error
-				return false
-			}
-			expect := "int"
-			if isstr {
-				expect = "string"
-			}
-			for _, v := range expr.Args {
-				if ok := a.typecheck(v, expect); !(ok) {
-					return false
-				}
-			}
-			return true
-			// more to come ...
+func (a *Analyzer) assurePrefExprReturnType(expr *ast.PrefixExpr, retType string) error {
+	for _, arg := range expr.Args {
+		if err := a.typecheckExpr(arg, retType); err != nil {
+			return err
 		}
-		// more to come ...
 	}
-	return false
+	return nil
 }
 
 func (a *Analyzer) typecheckVarDecl(s *ast.VariableDeclarationStatement) *IRVariable {
-	//v := &IRVariable{Name: s.Ident.String(), Type: s.Tok.Literal, Value: s.Value.String()}
-	panic("typecheckVarDecl UNIMPLEMENTED")
+	v := &IRVariable{Name: s.Ident.String(), Type: s.Tok.Literal, Value: s.Value.String()}
+	if err := a.typecheckExpr(s.Value, v.Type); err != nil {
+		a.Errs = append(a.Errs, err.(Err))
+		return nil
+	}
+	return v
 }

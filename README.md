@@ -37,7 +37,7 @@ string      ; utf-8 encoded strings
 - Operators in Quoi are prefix operators (like in Lisp).
 - They are enclosed in parenthesis ("like in Lisp" 2).
 ```python
-+ - * / ' lt lte gt gte 
++ - * / = ' lt lte gt gte 
 and or not
 ```
 ```lisp
