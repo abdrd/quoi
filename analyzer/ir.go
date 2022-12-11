@@ -17,7 +17,8 @@ type IRExpression interface {
 }
 
 type IRVariable struct {
-	Name, Type, Value string
+	Name, Type string
+	Value      IRExpression
 }
 
 type IRFunction struct {
@@ -64,7 +65,8 @@ type IRDatatype struct {
 // EXPRESSIONS
 
 type IRVariableReference struct {
-	Name, Type, Value string
+	Name, Type string
+	Value      IRExpression
 }
 
 type IRInt struct {
@@ -95,7 +97,7 @@ type IRFunctionCallFromNamespace struct {
 	IRFunctionCall
 }
 
-type IRArithmetic struct {
+type IRPrefExpr struct {
 	Operator string
 	Operands []IRExpression
 }
@@ -118,6 +120,7 @@ func (IRReturn) irStmt()                    {}
 func (IRFunctionCallFromNamespace) irStmt() {}
 func (IRFunctionCall) irStmt()              {}
 func (IRDatatype) irStmt()                  {}
+func (IRPrefExpr) irStmt()                  {}
 
 /* ********** IR EXPRESSIONS **************** */
 func (IRVariableReference) irExpr()         {}
@@ -127,6 +130,6 @@ func (IRBoolean) irExpr()                   {}
 func (IRList) irExpr()                      {}
 func (IRFunctionCall) irExpr()              {}
 func (IRFunctionCallFromNamespace) irExpr() {}
-func (IRArithmetic) irExpr()                {}
+func (IRPrefExpr) irExpr()                  {}
 func (IRNot) irExpr()                       {}
 func (IRIndex) irExpr()                     {}

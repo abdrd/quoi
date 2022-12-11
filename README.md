@@ -230,7 +230,7 @@ datatype, fun, int, string, bool, listof, block, end, if, elseif, else, loop, re
 
 - Namespaces form the standard library.
 - They provide functions to manipulate built-in data types, or print to the console, etc.
-
+c
 Syntax:
 
 ```cpp
