@@ -57,8 +57,32 @@ func TestPrefExpr1(t *testing.T) {
 	input := `
 		;int a = (+ 1 2).
 		;int a = "3".
-		string a = (+ 1 2).
-	`
+		;string a = (+ 1 2).
+		;int a = (+ "hello " "world").
+		;int a = (+ 1 "hello").
+		int b = 5.
+		int a = (+ 1 b).
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	for _, v := range program.IRStatements {
+		fmt.Println(v)
+	}
+}
+
+func TestList1(t *testing.T) {
+	input := `
+			;listof int nx = ["hey", 2, 3].
+			;listof string names = ["jennifer"].
+			listof int numbers = [40, 50, 7, 567, 517].
+			listof int numbers2 = numbers.
+			`
 	a := _new(input)
 	program := a.Analyze()
 	if len(a.Errs) > 0 {

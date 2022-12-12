@@ -3,7 +3,6 @@ package analyzer
 import (
 	"fmt"
 	"quoi/ast"
-	"strings"
 )
 
 type Err struct {
@@ -125,8 +124,11 @@ func (a *Analyzer) typecheck() *IRProgram {
 		case *ast.PrefixExpr:
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level prefix-expression")
 		case *ast.VariableDeclarationStatement:
-			ir := a.typecheckVarDecl(s)
-			if ir != nil {
+			if ir := a.typecheckVarDecl(s); ir != nil {
+				program.Push(ir)
+			}
+		case *ast.ListVariableDeclarationStatement:
+			if ir := a.typecheckListDecl(s); ir != nil {
 				program.Push(ir)
 			}
 		}
@@ -152,9 +154,8 @@ func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'bool'", type_)
 	case *ast.ListLiteral:
-		typeOfList := strings.Split(type_, "-")[1]
 		for _, v := range expr.Elems {
-			if err := a.is(v, typeOfList); err != nil {
+			if err := a.is(v, type_); err != nil {
 				return err
 			}
 		}
@@ -162,7 +163,7 @@ func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 	case *ast.Identifier:
 		variable := a.env.GetVar(expr.Tok.Literal)
 		if variable == nil {
-			return newErr(expr.Tok.Line, expr.Tok.Col, "reference non-existent variable '%s'", expr.Tok.Literal)
+			return newErr(expr.Tok.Line, expr.Tok.Col, "reference to non-existent variable '%s'", expr.Tok.Literal)
 		}
 		if variable.Type != type_ {
 			return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s' got '%s'", type_, variable.Type)
@@ -191,6 +192,8 @@ func (a *Analyzer) toIrExpr(expr ast.Expr) IRExpression {
 			ir.Operands = append(ir.Operands, a.toIrExpr(v))
 		}
 		return ir
+	case *ast.ListLiteral:
+		//ir := &IRList{Type: }
 	}
 	panic("toIrExpr : unhandled expr " + expr.String())
 }
@@ -241,5 +244,22 @@ func (a *Analyzer) typecheckVarDecl(s *ast.VariableDeclarationStatement) *IRVari
 		a.pushErr(err)
 		return nil
 	}
-	return &IRVariable{Name: s.Ident.String(), Type: s.Tok.Literal, Value: a.toIrExpr(s.Value)}
+	ir := &IRVariable{Name: s.Ident.String(), Type: s.Tok.Literal, Value: a.toIrExpr(s.Value)}
+	a.env.AddVar(ir.Name, ir)
+	return ir
+}
+
+func (a *Analyzer) typecheckListDecl(s *ast.ListVariableDeclarationStatement) *IRVariable {
+	if err := a.is(s.List, s.Typ.Literal); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	// TODO work-around
+	irExpr := &IRList{Type: s.Typ.Literal, Length: len(s.List.Elems)}
+	for _, v := range s.List.Elems {
+		irExpr.Value = append(irExpr.Value, a.toIrExpr(v))
+	}
+	ir := &IRVariable{Name: s.Name.String(), Type: s.Typ.Literal, Value: irExpr}
+	a.env.AddVar(ir.Name, ir)
+	return ir
 }
