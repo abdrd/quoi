@@ -673,3 +673,16 @@ func TestDatatypeListField(t *testing.T) {
 	print_stmts(t, program)
 	print_errs(t, errs)
 }
+
+func TestListDecl1(t *testing.T) {
+	input := `
+		listof int nx = [1, 2, 3].
+		;listof int nx2 = .;nx.
+		listof int nx3 = nx.
+s		listof int nxx = "hey".
+		`
+	program, errs, _ := _parse(input)
+	check_error_count(t, errs, 0)
+	print_stmts(t, program)
+	print_errs(t, errs)
+}

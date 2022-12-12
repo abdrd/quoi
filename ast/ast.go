@@ -350,7 +350,7 @@ type ListVariableDeclarationStatement struct {
 	Tok  token.Token
 	Typ  token.Token // types of elements in the list
 	Name *Identifier
-	List *ListLiteral
+	List Expr
 }
 
 func (l ListVariableDeclarationStatement) String() string {
