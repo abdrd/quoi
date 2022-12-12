@@ -82,8 +82,9 @@ type IRBoolean struct {
 }
 
 type IRList struct {
-	Type, Value string
-	Length      int
+	Type   string
+	Length int
+	Value  []IRExpression
 }
 
 type IRFunctionCall struct {
