@@ -8,7 +8,7 @@
 - [ ] List types in datatype fields
 
 ### Semantic analyzer
-- [ ] Refactor `sema/symbol.go`
+- [ ] Improve error reporting. 
 
 ### Compiler 
 - [ ] Show erroneous line-of-code in error messages. For example:
@@ -17,3 +17,6 @@
                          ^
   10:24 TypeError: invalid expression of type 'bool' for 'lt' operator
   ```
+
+
+- [ ] Handle divide-by-zero, and "out-of-bounds". (Probably in codegen)

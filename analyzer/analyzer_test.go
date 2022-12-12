@@ -80,9 +80,39 @@ func TestList1(t *testing.T) {
 	input := `
 			;listof int nx = ["hey", 2, 3].
 			;listof string names = ["jennifer"].
-			listof int numbers = [40, 50, 7, 567, 517].
-			listof int numbers2 = numbers.
+			;listof int numbers = [40, 50, 7, 567, 517].
+			;listof int numbers2 = numbers.
+			;listof int nx1 = 1.
+			;listof int nx2 = [1, 2].
+			;listof string strings = "hey".
+			;listof string strings2 = [].
+			;listof int a = [1].
+			int a = 5.
+			int b = a.
+			int c = (+ "hey" b).
+			listof string strings3 = c.
 			`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	for _, v := range program.IRStatements {
+		fmt.Println(v)
+	}
+}
+
+func TestOps1(t *testing.T) {
+	input := `
+		;int a = (+ 1).
+		;int b = (+ "hey" " world").
+		;int c = (/ 2).
+		;int z = (lt 5 4).
+		;bool x = (not (lt 5 6)).
+		`
 	a := _new(input)
 	program := a.Analyze()
 	if len(a.Errs) > 0 {
