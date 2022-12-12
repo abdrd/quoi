@@ -154,7 +154,7 @@ func (g *Generator) genStatement(s ast.Statement) {
 	case *ast.DatatypeDeclaration:
 		g.genDatatypeDecl(s)
 	case *ast.ListVariableDeclarationStatement:
-		g.genListDecl(s)
+		//g.genListDecl(s)
 	}
 }
 
@@ -389,7 +389,7 @@ func (g *Generator) genDatatypeDecl(decl *ast.DatatypeDeclaration) {
 	g.sym('}')
 }
 
-func (g *Generator) genListDecl(decl *ast.ListVariableDeclarationStatement) {
+/*func (g *Generator) genListDecl(decl *ast.ListVariableDeclarationStatement) {
 	g.w("var ")
 	g.w(decl.Name.String())
 	g.ws()
@@ -400,3 +400,4 @@ func (g *Generator) genListDecl(decl *ast.ListVariableDeclarationStatement) {
 	g.ws()
 	g.genListLit(decl.List, decl.Typ.Literal)
 }
+*/

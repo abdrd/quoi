@@ -1031,14 +1031,8 @@ func (p *Parser) parseListVariableDeclarationStatement() *ast.ListVariableDeclar
 		p.tok.Literal) {
 		return nil
 	}
-	if openSqBrOk, peek := p.expect(token.OPENING_SQUARE_BRACKET), p.peek(); !(openSqBrOk) {
-		p.errorf(peek.Line, peek.Col, "unexpected token '%s', where a '[' was expected", peek.Literal)
-		p.skip()
-		return nil
-	}
-	list := p.parseListLiteral(false)
-	if list == nil {
-		p.skip()
+	list := p.parseExpr()
+	if p.errif(list == nil, "missing value for list declaration '%s'", l.Name) {
 		return nil
 	}
 	l.List = list
