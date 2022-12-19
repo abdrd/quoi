@@ -115,7 +115,26 @@ func (a *Analyzer) registerDatatype(s *ast.DatatypeDeclaration) error {
 
 func (a *Analyzer) Analyze() *IRProgram {
 	a.registerFunctionsAndDatatypes()
+	a.checkSemanticStructure()
 	return a.typecheck()
+}
+
+func (a *Analyzer) checkSemanticStructure() {
+	// top-level else and elseif statements are checked at parsing stage.
+	for _, s := range a.program.Stmts {
+		switch s := s.(type) {
+		/* BEGIN TOP-LEVEL */
+		case *ast.BreakStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level break statement")
+		case *ast.ContinueStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
+		case *ast.PrefixExpr:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level unused prefix expression statement")
+		case *ast.DatatypeLiteral:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level unused datatype literal %s", s.Tok.Literal)
+			/* END TOP-LEVEL */
+		}
+	}
 }
 
 func (a *Analyzer) typecheck() *IRProgram {
@@ -140,17 +159,17 @@ func (a *Analyzer) typecheck() *IRProgram {
 func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 	switch expr := expr.(type) {
 	case *ast.StringLiteral:
-		if type_ == "string" {
+		if type_ == TypeString {
 			return nil
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'string'", type_)
 	case *ast.IntLiteral:
-		if type_ == "int" {
+		if type_ == TypeInt {
 			return nil
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'int'", type_)
 	case *ast.BoolLiteral:
-		if type_ == "bool" {
+		if type_ == TypeBool {
 			return nil
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'bool'", type_)
