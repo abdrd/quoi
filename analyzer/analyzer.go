@@ -313,6 +313,16 @@ func (a *Analyzer) typecheckListDecl(s *ast.ListVariableDeclarationStatement) *I
 	return ir
 }
 
+func (a *Analyzer) funAndDatatypeDeclOnlyInGlobalScope(s ast.Statement) error {
+	switch s := s.(type) {
+	case *ast.FunctionDeclarationStatement:
+		return newErr(s.Tok.Line, s.Tok.Col, "function declarations are only allowed at global scope")
+	case *ast.DatatypeDeclaration:
+		return newErr(s.Tok.Line, s.Tok.Col, "datatype declarations are only allowed at global scope")
+	}
+	return nil
+}
+
 func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
 	a.env.EnterScope()
 	defer a.env.ExitScope()
@@ -322,6 +332,10 @@ func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
 	}
 	ir := &IRIf{Cond: a.toIrExpr(s.Cond)}
 	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
 			ir.Block = append(ir.Block, stmtIr)
 		}
@@ -338,6 +352,10 @@ func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
 func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement) *IRElse {
 	ir := &IRElse{}
 	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
 			ir.Block = append(ir.Block, stmtIr)
 		}
@@ -354,6 +372,10 @@ func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement) *IRElseIf {
 	}
 	ir := &IRElseIf{Cond: a.toIrExpr(s.Cond)}
 	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
 			ir.Block = append(ir.Block, stmtIr)
 		}
