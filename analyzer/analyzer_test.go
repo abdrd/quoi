@@ -195,15 +195,15 @@ func TestIf2(t *testing.T) {
 
 func TestDatatype1(t *testing.T) {
 	input := `
-	datatype X {}
-	;datatype X {}
-	datatype Y {
-		string x
-		;int x
-		int y
-		User user
-	}
-`
+		datatype X {}
+		;datatype X {}
+		datatype Y {
+			string x
+			;int x
+			int y
+			User user
+		}
+	`
 	a := _new(input)
 	program := a.Analyze()
 	if len(a.Errs) > 0 {
