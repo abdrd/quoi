@@ -115,40 +115,21 @@ func (a *Analyzer) registerDatatype(s *ast.DatatypeDeclaration) error {
 
 func (a *Analyzer) Analyze() *IRProgram {
 	a.registerFunctionsAndDatatypes()
-	a.checkSemanticStructure()
 	return a.typecheck()
-}
-
-func (a *Analyzer) checkSemanticStructure() {
-	// top-level else and elseif statements are checked at parsing stage.
-	for _, s := range a.program.Stmts {
-		switch s := s.(type) {
-		/* BEGIN TOP-LEVEL */
-		case *ast.BreakStatement:
-			a.errorf(s.Tok.Line, s.Tok.Col, "top-level break statement")
-		case *ast.ContinueStatement:
-			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
-		case *ast.PrefixExpr:
-			a.errorf(s.Tok.Line, s.Tok.Col, "top-level unused prefix expression statement")
-		case *ast.DatatypeLiteral:
-			a.errorf(s.Tok.Line, s.Tok.Col, "top-level unused datatype literal %s", s.Tok.Literal)
-			/* END TOP-LEVEL */
-		}
-	}
 }
 
 func (a *Analyzer) typecheck() *IRProgram {
 	program := &IRProgram{}
 	for _, s := range a.program.Stmts {
 		switch s := s.(type) {
+		case *ast.BreakStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level break statement")
+		case *ast.ContinueStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
 		case *ast.PrefixExpr:
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level prefix-expression")
-		case *ast.VariableDeclarationStatement:
-			if ir := a.typecheckVarDecl(s); ir != nil {
-				program.Push(ir)
-			}
-		case *ast.ListVariableDeclarationStatement:
-			if ir := a.typecheckListDecl(s); ir != nil {
+		default:
+			if ir := a.typecheckStatement(s); ir != nil {
 				program.Push(ir)
 			}
 		}
@@ -194,6 +175,18 @@ func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 		return a.typecheckPrefExpr(expr, type_)
 	}
 	panic("is : unknown || " + type_ + " || " + expr.String())
+}
+
+func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
+	switch s := s.(type) {
+	case *ast.VariableDeclarationStatement:
+		return a.typecheckVarDecl(s)
+	case *ast.ListVariableDeclarationStatement:
+		return a.typecheckListDecl(s)
+	case *ast.IfStatement:
+		return a.typecheckIfStmt(s)
+	}
+	return nil
 }
 
 func (a *Analyzer) toIrExpr(expr ast.Expr, typeOfList ...string) IRExpression {
@@ -317,5 +310,59 @@ func (a *Analyzer) typecheckListDecl(s *ast.ListVariableDeclarationStatement) *I
 	}
 	ir := &IRVariable{Name: s.Name.String(), Type: listTyp, Value: a.toIrExpr(s.List, s.Typ.Literal)}
 	a.env.AddVar(ir.Name, ir)
+	return ir
+}
+
+func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
+	a.env.EnterScope()
+	defer a.env.ExitScope()
+	if err := a.is(s.Cond, TypeBool); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	ir := &IRIf{Cond: a.toIrExpr(s.Cond)}
+	for _, v := range s.Stmts {
+		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+			ir.Block = append(ir.Block, stmtIr)
+		}
+	}
+	if s.Alternative != nil {
+		ir.Alternative = a.typecheckElseIfStmt(s.Alternative)
+	}
+	if s.Default != nil {
+		ir.Default = a.typecheckElseStmt(s.Default)
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement) *IRElse {
+	ir := &IRElse{}
+	for _, v := range s.Stmts {
+		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+			ir.Block = append(ir.Block, stmtIr)
+		}
+	}
+	return ir
+}
+
+// this is going to be mostly the same as typecheckIfStmt, but I don't want to create workarounds to prevent
+// entering a new scope when using typecheckIfStmt to typecheck an elseif statement.
+func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement) *IRElseIf {
+	if err := a.is(s.Cond, TypeBool); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	ir := &IRElseIf{Cond: a.toIrExpr(s.Cond)}
+	for _, v := range s.Stmts {
+		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+			ir.Block = append(ir.Block, stmtIr)
+		}
+	}
+	if s.Alternative != nil {
+		ir.Alternative = a.typecheckElseIfStmt(s.Alternative)
+	}
+	if s.Default != nil {
+		ir.Default = a.typecheckElseStmt(s.Default)
+	}
 	return ir
 }

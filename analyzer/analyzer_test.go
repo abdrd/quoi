@@ -125,3 +125,50 @@ func TestOps1(t *testing.T) {
 		fmt.Println(v)
 	}
 }
+
+func TestTopLevel1(t *testing.T) {
+	input := `
+		break.
+		continue.
+		(+ 1 2).
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	for _, v := range program.IRStatements {
+		fmt.Println(v)
+	}
+}
+
+func TestIf1(t *testing.T) {
+	input := `
+		string y = "Hello".
+		if true {
+			int x = 1.
+		} elseif false {
+			int y = 6.
+		} else {
+			; this 'y' should refer to "int y = 6" above.
+			int x = y.
+		}
+		;if "hey" {}
+		if (lt 5 6) {
+			string q = "hey".
+		}
+		;string qq = q.
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	_ = program
+}
