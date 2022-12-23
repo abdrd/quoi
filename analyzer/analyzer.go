@@ -185,6 +185,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
 		return a.typecheckListDecl(s)
 	case *ast.IfStatement:
 		return a.typecheckIfStmt(s)
+	case *ast.DatatypeDeclaration:
+		return a.typecheckDatatypeDecl(s)
 	}
 	return nil
 }
@@ -385,6 +387,21 @@ func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement) *IRElseIf {
 	}
 	if s.Default != nil {
 		ir.Default = a.typecheckElseStmt(s.Default)
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckDatatypeDecl(s *ast.DatatypeDeclaration) *IRDatatype {
+	ir := &IRDatatype{Name: s.Name.String(), FieldCount: len(s.Fields)}
+	fields := map[string]bool{} // to prevent two fields with the same name
+	for _, v := range s.Fields {
+		fieldName := v.Ident.String()
+		if fields[fieldName] {
+			a.errorf(v.Tok.Line, v.Tok.Col, "duplicate field name '%s' in datatype '%s'", fieldName, ir.Name)
+			return nil
+		}
+		ir.Fields = append(ir.Fields, IRDatatypeField{Type: v.Tok.Literal, Name: v.Ident.String()})
+		fields[fieldName] = true
 	}
 	return ir
 }

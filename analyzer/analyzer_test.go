@@ -192,3 +192,25 @@ func TestIf2(t *testing.T) {
 	}
 	_ = program
 }
+
+func TestDatatype1(t *testing.T) {
+	input := `
+	datatype X {}
+	;datatype X {}
+	datatype Y {
+		string x
+		;int x
+		int y
+		User user
+	}
+`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	_ = program
+}
