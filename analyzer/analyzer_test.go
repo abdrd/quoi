@@ -255,3 +255,82 @@ func TestSubseq1(t *testing.T) {
 	}
 	_ = program
 }
+
+func TestReas1(t *testing.T) {
+	input := `
+		int x = 1.
+		int y = x.
+		x = 2.
+		int q = x.
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	/*
+		fmt.Println(program.IRStatements[0].(*IRVariable).Value.(*IRInt).Value)
+		fmt.Println(program.IRStatements[1].(*IRReassigment).NewValue.(*IRInt).Value)
+	*/
+	fmt.Println(program.IRStatements[0].(*IRVariable).Value)
+	fmt.Println(program.IRStatements[1].(*IRVariable).Value.(*IRVariableReference).Value)
+	fmt.Println(program.IRStatements[2].(*IRReassigment).NewValue)
+	fmt.Println(program.IRStatements[3].(*IRVariable).Value.(*IRVariableReference).Value)
+}
+
+func TestBlock1(t *testing.T) {
+	input := `
+		int x = 10.
+		;int xx = 100.
+		block 
+			int x = 1.
+			int y = (+ x 1).
+			;string s = xx.
+		end
+		;int q = x.
+		block 
+;			break.
+;			continue.
+		end
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	fmt.Println(program.IRStatements[1].(*IRBlock).Stmts[1].(*IRVariable).Value.(*IRPrefExpr).Operands[0].(*IRVariableReference).Value)
+}
+
+func TestLoop1(t *testing.T) {
+	input := `
+		;loop (+ 1 2) {
+		;	int x = 1.
+		;}
+
+		int i = 0.
+		loop (lt i 10) {
+			i = (+ i 1).
+			;fun a() -> string {}
+			;datatype Song {
+			;	string name
+			;	int year
+			;}
+			break.
+			continue.
+		}
+	`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
