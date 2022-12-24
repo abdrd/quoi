@@ -34,6 +34,14 @@ func (s *SymbolTable) addVar(ident string, decl *IRVariable) error {
 	return nil
 }
 
+func (s *SymbolTable) updateVar(ident string, newVal IRExpression) error {
+	if s.getVar(ident) == nil {
+		return fmt.Errorf("trying to update non-existent variable '%s'", ident)
+	}
+	s.vars[ident].Value = newVal
+	return nil
+}
+
 func (s *SymbolTable) getFunc(ident string) *IRFunction {
 	if v, found := s.funcs[ident]; found {
 		return v
@@ -122,6 +130,10 @@ func (ss *ScopeStack) GetVar(ident string) *IRVariable {
 // add variable to the symbol table of the scope that is at the top of ss.Scopes
 func (ss *ScopeStack) AddVar(ident string, decl *IRVariable) error {
 	return ss.Scopes[len(ss.Scopes)-1].symbolTable.addVar(ident, decl)
+}
+
+func (ss *ScopeStack) UpdateVar(ident string, newVal IRExpression) error {
+	return ss.Scopes[len(ss.Scopes)-1].symbolTable.updateVar(ident, newVal)
 }
 
 func (ss *ScopeStack) GetFunc(ident string) *IRFunction {

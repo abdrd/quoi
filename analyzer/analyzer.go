@@ -189,6 +189,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
 		return a.typecheckDatatypeDecl(s)
 	case *ast.SubsequentVariableDeclarationStatement:
 		return a.typecheckSubseqVarDecl(s)
+	case *ast.ReassignmentStatement:
+		return a.typecheckReassignment(s)
 	}
 	return nil
 }
@@ -472,6 +474,21 @@ func (a *Analyzer) typecheckSubseqVarDecl(s *ast.SubsequentVariableDeclarationSt
 			a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
 			return nil
 		}
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckReassignment(s *ast.ReassignmentStatement) *IRReassigment {
+	ir := &IRReassigment{Name: s.Ident.String()}
+	typOfOldVal := a.env.GetVar(ir.Name).Type
+	if err := a.is(s.NewValue, typOfOldVal); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	ir.NewValue = a.toIrExpr(s.NewValue)
+	if err := a.env.UpdateVar(ir.Name, ir.NewValue); err != nil {
+		a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
+		return nil
 	}
 	return ir
 }

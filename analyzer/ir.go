@@ -67,6 +67,11 @@ type IRDatatype struct {
 	Fields     []IRDatatypeField
 }
 
+type IRReassigment struct {
+	Name     string
+	NewValue IRExpression
+}
+
 // EXPRESSIONS
 
 type IRVariableReference struct {
@@ -128,6 +133,7 @@ func (IRFunctionCallFromNamespace) irStmt() {}
 func (IRFunctionCall) irStmt()              {}
 func (IRDatatype) irStmt()                  {}
 func (IRPrefExpr) irStmt()                  {}
+func (IRReassigment) irStmt()               {}
 
 /* ********** IR EXPRESSIONS **************** */
 func (IRVariableReference) irExpr()         {}

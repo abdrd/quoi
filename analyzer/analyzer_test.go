@@ -255,3 +255,28 @@ func TestSubseq1(t *testing.T) {
 	}
 	_ = program
 }
+
+func TestReas1(t *testing.T) {
+	input := `
+		int x = 1.
+		int y = x.
+		x = 2.
+		int q = x.
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	/*
+		fmt.Println(program.IRStatements[0].(*IRVariable).Value.(*IRInt).Value)
+		fmt.Println(program.IRStatements[1].(*IRReassigment).NewValue.(*IRInt).Value)
+	*/
+	fmt.Println(program.IRStatements[0].(*IRVariable).Value)
+	fmt.Println(program.IRStatements[1].(*IRVariable).Value.(*IRVariableReference).Value)
+	fmt.Println(program.IRStatements[2].(*IRReassigment).NewValue)
+	fmt.Println(program.IRStatements[3].(*IRVariable).Value.(*IRVariableReference).Value)
+}
