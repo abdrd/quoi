@@ -191,6 +191,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
 		return a.typecheckSubseqVarDecl(s)
 	case *ast.ReassignmentStatement:
 		return a.typecheckReassignment(s)
+	case *ast.BlockStatement:
+		return a.typecheckBlock(s)
 	}
 	return nil
 }
@@ -489,6 +491,18 @@ func (a *Analyzer) typecheckReassignment(s *ast.ReassignmentStatement) *IRReassi
 	if err := a.env.UpdateVar(ir.Name, ir.NewValue); err != nil {
 		a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
 		return nil
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckBlock(s *ast.BlockStatement) *IRBlock {
+	a.env.EnterScope()
+	defer a.env.ExitScope()
+	ir := &IRBlock{}
+	for _, v := range s.Stmts {
+		if stmt := a.typecheckStatement(v); stmt != nil {
+			ir.Stmts = append(ir.Stmts, stmt)
+		}
 	}
 	return ir
 }

@@ -280,3 +280,25 @@ func TestReas1(t *testing.T) {
 	fmt.Println(program.IRStatements[2].(*IRReassigment).NewValue)
 	fmt.Println(program.IRStatements[3].(*IRVariable).Value.(*IRVariableReference).Value)
 }
+
+func TestBlock1(t *testing.T) {
+	input := `
+		int x = 10.
+		;int xx = 100.
+		block 
+			int x = 1.
+			int y = (+ x 1).
+			;string s = xx.
+		end
+		;int q = x.
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	fmt.Println(program.IRStatements[1].(*IRBlock).Stmts[1].(*IRVariable).Value.(*IRPrefExpr).Operands[0].(*IRVariableReference).Value)
+}
