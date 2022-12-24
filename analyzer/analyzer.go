@@ -3,6 +3,7 @@ package analyzer
 import (
 	"fmt"
 	"quoi/ast"
+	"strings"
 )
 
 type Err struct {
@@ -121,14 +122,14 @@ func (a *Analyzer) typecheck() *IRProgram {
 	program := &IRProgram{}
 	for _, s := range a.program.Stmts {
 		switch s := s.(type) {
+		case *ast.BreakStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level break statement")
+		case *ast.ContinueStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
 		case *ast.PrefixExpr:
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level prefix-expression")
-		case *ast.VariableDeclarationStatement:
-			if ir := a.typecheckVarDecl(s); ir != nil {
-				program.Push(ir)
-			}
-		case *ast.ListVariableDeclarationStatement:
-			if ir := a.typecheckListDecl(s); ir != nil {
+		default:
+			if ir := a.typecheckStatement(s); ir != nil {
 				program.Push(ir)
 			}
 		}
@@ -139,23 +140,24 @@ func (a *Analyzer) typecheck() *IRProgram {
 func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 	switch expr := expr.(type) {
 	case *ast.StringLiteral:
-		if type_ == "string" {
+		if type_ == TypeString {
 			return nil
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'string'", type_)
 	case *ast.IntLiteral:
-		if type_ == "int" {
+		if type_ == TypeInt {
 			return nil
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'int'", type_)
 	case *ast.BoolLiteral:
-		if type_ == "bool" {
+		if type_ == TypeBool {
 			return nil
 		}
 		return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s' got 'bool'", type_)
 	case *ast.ListLiteral:
+		typeOfList := strings.Split(type_, "-")[1]
 		for _, v := range expr.Elems {
-			if err := a.is(v, type_); err != nil {
+			if err := a.is(v, typeOfList); err != nil {
 				return err
 			}
 		}
@@ -175,7 +177,25 @@ func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 	panic("is : unknown || " + type_ + " || " + expr.String())
 }
 
-func (a *Analyzer) toIrExpr(expr ast.Expr) IRExpression {
+func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
+	switch s := s.(type) {
+	case *ast.VariableDeclarationStatement:
+		return a.typecheckVarDecl(s)
+	case *ast.ListVariableDeclarationStatement:
+		return a.typecheckListDecl(s)
+	case *ast.IfStatement:
+		return a.typecheckIfStmt(s)
+	case *ast.DatatypeDeclaration:
+		return a.typecheckDatatypeDecl(s)
+	case *ast.SubsequentVariableDeclarationStatement:
+		return a.typecheckSubseqVarDecl(s)
+	}
+	return nil
+}
+
+func (a *Analyzer) toIrExpr(expr ast.Expr, typeOfList ...string) IRExpression {
+	// IMPORTANT
+	// typeOfList variable is a variadic parameter, because I want to be able to skip it if I want to.
 	switch expr := expr.(type) {
 	case *ast.StringLiteral:
 		return &IRString{Value: expr.Val}
@@ -193,46 +213,109 @@ func (a *Analyzer) toIrExpr(expr ast.Expr) IRExpression {
 		}
 		return ir
 	case *ast.ListLiteral:
-		//ir := &IRList{Type: }
+		if len(typeOfList) != 1 {
+			panic("toIrExpr: len(typeOfList) != 1")
+		}
+		ir := &IRList{Type: typeOfList[0], Length: len(expr.Elems)}
+		for _, v := range expr.Elems {
+			ir.Value = append(ir.Value, a.toIrExpr(v))
+		}
+		return ir
 	}
 	panic("toIrExpr : unhandled expr " + expr.String())
 }
 
 func (a *Analyzer) typecheckPrefExpr(s *ast.PrefixExpr, expectedType string) error {
-	if s.Tok.Literal != "not" && s.Tok.Literal != "'" && len(s.Args) < 2 {
-		return newErr(s.Tok.Line, s.Tok.Col, "'%s' operator expects at least 2 arguments", s.Tok.Literal)
-	}
 	switch s.Tok.Literal {
 	case "+":
+		if len(s.Args) < 2 {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '+' needs at least 2 arguments")
+		}
 		isStrConcat := a.is(s.Args[0], TypeString) == nil
 		isIntAddition := a.is(s.Args[0], TypeInt) == nil
+		if !(isStrConcat) && !(isIntAddition) {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '+' takes string or int values")
+		}
 		if isStrConcat {
 			for _, v := range s.Args {
 				if err := a.is(v, TypeString); err != nil {
 					return err
 				}
 			}
-			if expectedType != "string" {
+			if expectedType != TypeString {
 				return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'string'", expectedType)
 			}
 			return nil
-		} else if isIntAddition {
-			for _, v := range s.Args {
-				if err := a.is(v, TypeInt); err != nil {
-					return err
-				}
-			}
-			if expectedType != "int" {
-				return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'int'", expectedType)
-			}
-			return nil
 		}
-		return newErr(s.Tok.Line, s.Tok.Col, "illegal type of expression passed to '+' operator")
-	case "-", "/", "*":
 		for _, v := range s.Args {
 			if err := a.is(v, TypeInt); err != nil {
 				return err
 			}
+		}
+		if expectedType != TypeInt {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'int'", expectedType)
+		}
+		return nil
+	case "-", "/", "*":
+		if len(s.Args) < 2 {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '%s' needs at least 2 arguments", s.Tok.Literal)
+		}
+		for _, v := range s.Args {
+			if err := a.is(v, TypeInt); err != nil {
+				return err
+			}
+		}
+		if expectedType != TypeInt {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'int'", expectedType)
+		}
+		return nil
+	case "lt", "lte", "gt", "gte":
+		if len(s.Args) < 2 {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '%s' needs exactly 2 arguments", s.Tok.Literal)
+		}
+		for _, v := range s.Args {
+			if err := a.is(v, TypeInt); err != nil {
+				return err
+			}
+		}
+		if expectedType != TypeBool {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'bool'", expectedType)
+		}
+		return nil
+	case "not":
+		if len(s.Args) != 1 {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator 'not' needs exactly 1 argument")
+		}
+		if err := a.is(s.Args[0], TypeBool); err != nil {
+			return err
+		}
+		if expectedType != TypeBool {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'bool'", expectedType)
+		}
+		return nil
+	case "=":
+		if len(s.Args) != 2 {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '=' needs exactly 2 arguments")
+		}
+		isStrEq := a.is(s.Args[0], TypeString) == nil
+		isIntEq := a.is(s.Args[0], TypeInt) == nil
+		if !(isStrEq) && !(isIntEq) {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '=' takes string or int values")
+		}
+		if isStrEq {
+			if err := a.is(s.Args[1], TypeString); err != nil {
+				return err
+			}
+			if expectedType != TypeBool {
+				return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'bool'", expectedType)
+			}
+			return nil
+		}
+		if err := a.is(s.Args[1], TypeInt); err != nil {
+			return err
+		}
+		if expectedType != TypeBool {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'bool'", expectedType)
 		}
 		return nil
 	}
@@ -250,16 +333,145 @@ func (a *Analyzer) typecheckVarDecl(s *ast.VariableDeclarationStatement) *IRVari
 }
 
 func (a *Analyzer) typecheckListDecl(s *ast.ListVariableDeclarationStatement) *IRVariable {
-	if err := a.is(s.List, s.Typ.Literal); err != nil {
+	listTyp := TypeList(s.Typ.Literal)
+	if err := a.is(s.List, listTyp); err != nil {
 		a.pushErr(err)
 		return nil
 	}
-	// TODO work-around
-	irExpr := &IRList{Type: s.Typ.Literal, Length: len(s.List.Elems)}
-	for _, v := range s.List.Elems {
-		irExpr.Value = append(irExpr.Value, a.toIrExpr(v))
-	}
-	ir := &IRVariable{Name: s.Name.String(), Type: s.Typ.Literal, Value: irExpr}
+	ir := &IRVariable{Name: s.Name.String(), Type: listTyp, Value: a.toIrExpr(s.List, s.Typ.Literal)}
 	a.env.AddVar(ir.Name, ir)
+	return ir
+}
+
+func (a *Analyzer) funAndDatatypeDeclOnlyInGlobalScope(s ast.Statement) error {
+	switch s := s.(type) {
+	case *ast.FunctionDeclarationStatement:
+		return newErr(s.Tok.Line, s.Tok.Col, "function declarations are only allowed at global scope")
+	case *ast.DatatypeDeclaration:
+		return newErr(s.Tok.Line, s.Tok.Col, "datatype declarations are only allowed at global scope")
+	}
+	return nil
+}
+
+func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
+	a.env.EnterScope()
+	defer a.env.ExitScope()
+	if err := a.is(s.Cond, TypeBool); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	ir := &IRIf{Cond: a.toIrExpr(s.Cond)}
+	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+			ir.Block = append(ir.Block, stmtIr)
+		}
+	}
+	if s.Alternative != nil {
+		ir.Alternative = a.typecheckElseIfStmt(s.Alternative)
+	}
+	if s.Default != nil {
+		ir.Default = a.typecheckElseStmt(s.Default)
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement) *IRElse {
+	ir := &IRElse{}
+	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+			ir.Block = append(ir.Block, stmtIr)
+		}
+	}
+	return ir
+}
+
+// this is going to be mostly the same as typecheckIfStmt, but I don't want to create workarounds to prevent
+// entering a new scope when using typecheckIfStmt to typecheck an elseif statement.
+func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement) *IRElseIf {
+	if err := a.is(s.Cond, TypeBool); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	ir := &IRElseIf{Cond: a.toIrExpr(s.Cond)}
+	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+			ir.Block = append(ir.Block, stmtIr)
+		}
+	}
+	if s.Alternative != nil {
+		ir.Alternative = a.typecheckElseIfStmt(s.Alternative)
+	}
+	if s.Default != nil {
+		ir.Default = a.typecheckElseStmt(s.Default)
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckDatatypeDecl(s *ast.DatatypeDeclaration) *IRDatatype {
+	ir := &IRDatatype{Name: s.Name.String(), FieldCount: len(s.Fields)}
+	fields := map[string]bool{} // to prevent two fields with the same name
+	for _, v := range s.Fields {
+		fieldName := v.Ident.String()
+		if fields[fieldName] {
+			a.errorf(v.Tok.Line, v.Tok.Col, "duplicate field name '%s' in datatype '%s'", fieldName, ir.Name)
+			return nil
+		}
+		ir.Fields = append(ir.Fields, IRDatatypeField{Type: v.Tok.Literal, Name: v.Ident.String()})
+		fields[fieldName] = true
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckSubseqVarDecl(s *ast.SubsequentVariableDeclarationStatement) *IRSubseq {
+	ir := &IRSubseq{}
+	lenTypes, lenNames, lenValues := len(s.Types), len(s.Names), len(s.Values)
+	// lenTypes, and lenNames are guaranteed -by the parser- to be equal.
+	if lenTypes != lenValues || lenNames != lenValues {
+		a.errorf(s.Tok.Line, s.Tok.Col, "missing value")
+		return nil
+	}
+	for _, v := range s.Names {
+		ir.Names = append(ir.Names, v.String())
+	}
+	for _, v := range s.Types {
+		if v.IsList {
+			ir.Types = append(ir.Types, TypeList(v.TypeOfList.Literal))
+			continue
+		}
+		ir.Types = append(ir.Types, v.Tok.Literal)
+	}
+	for i := 0; i < len(s.Values); i++ {
+		typ, name := ir.Types[i], ir.Names[i]
+		if err := a.is(s.Values[i], typ); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		valToConv := s.Values[i]
+		isList := s.Types[i].IsList
+		typOfList := s.Types[i].TypeOfList
+		var irExpr IRExpression
+		if isList {
+			irExpr = a.toIrExpr(valToConv, typOfList.Literal)
+		} else {
+			irExpr = a.toIrExpr(valToConv)
+		}
+		ir.Values = append(ir.Values, irExpr)
+		if err := a.env.AddVar(name, &IRVariable{Name: name, Type: typ, Value: irExpr}); err != nil {
+			a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
+			return nil
+		}
+	}
 	return ir
 }

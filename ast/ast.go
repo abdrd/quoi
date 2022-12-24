@@ -95,6 +95,7 @@ type VarType struct {
 
 /* This structure is a bit weird, isn't it ? */
 type SubsequentVariableDeclarationStatement struct {
+	Tok    token.Token // first token encountered
 	Types  []VarType
 	Names  []*Identifier
 	Values []Expr

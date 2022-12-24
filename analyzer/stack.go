@@ -111,8 +111,8 @@ func (ss *ScopeStack) ExitScope() {
 }
 
 func (ss *ScopeStack) GetVar(ident string) *IRVariable {
-	for _, s := range ss.Scopes {
-		if v := s.symbolTable.getVar(ident); v != nil {
+	for i := len(ss.Scopes) - 1; i >= 0; i-- {
+		if v := ss.Scopes[i].symbolTable.getVar(ident); v != nil {
 			return v
 		}
 	}

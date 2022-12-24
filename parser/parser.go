@@ -608,7 +608,7 @@ noval:
 /* this is called whenever we see a comma after an identifier in parseVariableDecl */
 func (p *Parser) parseSubsequentVariableDeclarationStatement() *ast.SubsequentVariableDeclarationStatement {
 	// current token is a type
-	var res = &ast.SubsequentVariableDeclarationStatement{}
+	var res = &ast.SubsequentVariableDeclarationStatement{Tok: p.tok}
 	// parse types, and names
 	for p.curnot(token.EQUAL) {
 		if p.errif(p.curis(token.EOF),
