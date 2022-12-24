@@ -128,6 +128,8 @@ func (a *Analyzer) typecheck() *IRProgram {
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
 		case *ast.PrefixExpr:
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level prefix-expression")
+		case *ast.ReturnStatement:
+			a.errorf(s.Tok.Line, s.Tok.Col, "return statement outside a function body")
 		default:
 			if ir := a.typecheckStatement(s); ir != nil {
 				program.Push(ir)
@@ -193,6 +195,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
 		return a.typecheckReassignment(s)
 	case *ast.BlockStatement:
 		return a.typecheckBlock(s)
+	case *ast.LoopStatement:
+		return a.typecheckLoop(s)
 	}
 	return nil
 }
@@ -495,11 +499,47 @@ func (a *Analyzer) typecheckReassignment(s *ast.ReassignmentStatement) *IRReassi
 	return ir
 }
 
+func (a *Analyzer) illegalInBlock(s ast.Statement) error {
+	if err := a.funAndDatatypeDeclOnlyInGlobalScope(s); err != nil {
+		return err
+	}
+	switch s := s.(type) {
+	case *ast.BreakStatement:
+		return newErr(s.Tok.Line, s.Tok.Col, "break is not allowed inside blocks")
+	case *ast.ContinueStatement:
+		return newErr(s.Tok.Line, s.Tok.Col, "continue is not allowed inside blocks")
+	}
+	return nil
+}
+
 func (a *Analyzer) typecheckBlock(s *ast.BlockStatement) *IRBlock {
 	a.env.EnterScope()
 	defer a.env.ExitScope()
 	ir := &IRBlock{}
 	for _, v := range s.Stmts {
+		if err := a.illegalInBlock(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		if stmt := a.typecheckStatement(v); stmt != nil {
+			ir.Stmts = append(ir.Stmts, stmt)
+		}
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckLoop(s *ast.LoopStatement) *IRLoop {
+	ir := &IRLoop{}
+	if err := a.is(s.Cond, TypeBool); err != nil {
+		a.pushErr(err)
+		return nil
+	}
+	ir.Cond = a.toIrExpr(s.Cond)
+	for _, v := range s.Stmts {
+		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if stmt := a.typecheckStatement(v); stmt != nil {
 			ir.Stmts = append(ir.Stmts, stmt)
 		}

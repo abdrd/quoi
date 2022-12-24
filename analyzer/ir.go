@@ -125,6 +125,11 @@ type IRBlock struct {
 	Stmts []IRStatement
 }
 
+type IRLoop struct {
+	Cond  IRExpression
+	Stmts []IRStatement
+}
+
 /* ********** IR STATEMENTS ***************** */
 func (IRVariable) irStmt()                  {}
 func (IRSubseq) irStmt()                    {}
@@ -139,6 +144,7 @@ func (IRDatatype) irStmt()                  {}
 func (IRPrefExpr) irStmt()                  {}
 func (IRReassigment) irStmt()               {}
 func (IRBlock) irStmt()                     {}
+func (IRLoop) irStmt()                      {}
 
 /* ********** IR EXPRESSIONS **************** */
 func (IRVariableReference) irExpr()         {}
