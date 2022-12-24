@@ -231,6 +231,9 @@ func (a *Analyzer) typecheckPrefExpr(s *ast.PrefixExpr, expectedType string) err
 		}
 		isStrConcat := a.is(s.Args[0], TypeString) == nil
 		isIntAddition := a.is(s.Args[0], TypeInt) == nil
+		if !(isStrConcat) && !(isIntAddition) {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '+' takes string or int values")
+		}
 		if isStrConcat {
 			for _, v := range s.Args {
 				if err := a.is(v, TypeString); err != nil {
@@ -241,18 +244,16 @@ func (a *Analyzer) typecheckPrefExpr(s *ast.PrefixExpr, expectedType string) err
 				return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'string'", expectedType)
 			}
 			return nil
-		} else if isIntAddition {
-			for _, v := range s.Args {
-				if err := a.is(v, TypeInt); err != nil {
-					return err
-				}
-			}
-			if expectedType != TypeInt {
-				return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'int'", expectedType)
-			}
-			return nil
 		}
-		return newErr(s.Tok.Line, s.Tok.Col, "illegal type of expression passed to '+' operator")
+		for _, v := range s.Args {
+			if err := a.is(v, TypeInt); err != nil {
+				return err
+			}
+		}
+		if expectedType != TypeInt {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'int'", expectedType)
+		}
+		return nil
 	case "-", "/", "*":
 		if len(s.Args) < 2 {
 			return newErr(s.Tok.Line, s.Tok.Col, "operator '%s' needs at least 2 arguments", s.Tok.Literal)
@@ -284,6 +285,31 @@ func (a *Analyzer) typecheckPrefExpr(s *ast.PrefixExpr, expectedType string) err
 			return newErr(s.Tok.Line, s.Tok.Col, "operator 'not' needs exactly 1 argument")
 		}
 		if err := a.is(s.Args[0], TypeBool); err != nil {
+			return err
+		}
+		if expectedType != TypeBool {
+			return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'bool'", expectedType)
+		}
+		return nil
+	case "=":
+		if len(s.Args) != 2 {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '=' needs exactly 2 arguments")
+		}
+		isStrEq := a.is(s.Args[0], TypeString) == nil
+		isIntEq := a.is(s.Args[0], TypeInt) == nil
+		if !(isStrEq) && !(isIntEq) {
+			return newErr(s.Tok.Line, s.Tok.Col, "operator '=' takes string or int values")
+		}
+		if isStrEq {
+			if err := a.is(s.Args[1], TypeString); err != nil {
+				return err
+			}
+			if expectedType != TypeBool {
+				return newErr(s.Tok.Line, s.Tok.Col, "expected '%s', got 'bool'", expectedType)
+			}
+			return nil
+		}
+		if err := a.is(s.Args[1], TypeInt); err != nil {
 			return err
 		}
 		if expectedType != TypeBool {

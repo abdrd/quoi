@@ -214,3 +214,25 @@ func TestDatatype1(t *testing.T) {
 	}
 	_ = program
 }
+
+func TestOps2(t *testing.T) {
+	input := `
+		;bool x = (= 5 5).
+		;bool x = (= 5 "hey").
+		;bool x = (= "hey" 5).
+		;int x = (= "hey" "hey").
+		;int x = (+ true true).
+		int x = 555.
+		int y, string q = x, "Hello".
+		int total = (+ 1 2 3 y).
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	_ = program
+}
