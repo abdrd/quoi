@@ -334,3 +334,21 @@ func TestLoop1(t *testing.T) {
 		return
 	}
 }
+
+func TestTopLevel2(t *testing.T) {
+	input := `
+		"Hello".
+		1.
+		true.
+		User{}.
+		(+ 1 2).
+	`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}

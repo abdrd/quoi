@@ -128,6 +128,14 @@ func (a *Analyzer) typecheck() *IRProgram {
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
 		case *ast.PrefixExpr:
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level prefix-expression")
+		case *ast.StringLiteral:
+			a.errorf(s.Typ.Line, s.Typ.Col, "unused string literal")
+		case *ast.IntLiteral:
+			a.errorf(s.Typ.Line, s.Typ.Col, "unused integer literal")
+		case *ast.BoolLiteral:
+			a.errorf(s.Typ.Line, s.Typ.Col, "unused boolean literal")
+		case *ast.DatatypeLiteral:
+			a.errorf(s.Tok.Line, s.Tok.Col, "unused datatype literal")
 		case *ast.ReturnStatement:
 			a.errorf(s.Tok.Line, s.Tok.Col, "return statement outside a function body")
 		default:
