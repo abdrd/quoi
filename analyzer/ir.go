@@ -21,6 +21,11 @@ type IRVariable struct {
 	Value      IRExpression
 }
 
+type IRSubseq struct {
+	Names, Types []string
+	Values       []IRExpression
+}
+
 type IRFunction struct {
 	Name                     string
 	Takes, Returns           []string
@@ -113,6 +118,7 @@ type IRIndex struct {
 
 /* ********** IR STATEMENTS ***************** */
 func (IRVariable) irStmt()                  {}
+func (IRSubseq) irStmt()                    {}
 func (IRFunction) irStmt()                  {}
 func (IRIf) irStmt()                        {}
 func (IRElseIf) irStmt()                    {}

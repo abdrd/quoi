@@ -222,9 +222,28 @@ func TestOps2(t *testing.T) {
 		;bool x = (= "hey" 5).
 		;int x = (= "hey" "hey").
 		;int x = (+ true true).
+
 		int x = 555.
 		int y, string q = x, "Hello".
-		int total = (+ 1 2 3 y).
+		int total = (+ 1 2 3 q).
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	_ = program
+}
+
+func TestSubseq1(t *testing.T) {
+	input := `
+		listof int nx, listof string strx = [1, 2, 3], ["h", "e", "y"].
+		listof int nx2, listof string strx2 = nx, strx.
+		;listof int nxq = strx.
+		;int x, listof string strx, bool y = 1, [], true.
 		`
 	a := _new(input)
 	program := a.Analyze()

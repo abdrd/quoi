@@ -187,6 +187,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
 		return a.typecheckIfStmt(s)
 	case *ast.DatatypeDeclaration:
 		return a.typecheckDatatypeDecl(s)
+	case *ast.SubsequentVariableDeclarationStatement:
+		return a.typecheckSubseqVarDecl(s)
 	}
 	return nil
 }
@@ -428,6 +430,48 @@ func (a *Analyzer) typecheckDatatypeDecl(s *ast.DatatypeDeclaration) *IRDatatype
 		}
 		ir.Fields = append(ir.Fields, IRDatatypeField{Type: v.Tok.Literal, Name: v.Ident.String()})
 		fields[fieldName] = true
+	}
+	return ir
+}
+
+func (a *Analyzer) typecheckSubseqVarDecl(s *ast.SubsequentVariableDeclarationStatement) *IRSubseq {
+	ir := &IRSubseq{}
+	lenTypes, lenNames, lenValues := len(s.Types), len(s.Names), len(s.Values)
+	// lenTypes, and lenNames are guaranteed -by the parser- to be equal.
+	if lenTypes != lenValues || lenNames != lenValues {
+		a.errorf(s.Tok.Line, s.Tok.Col, "missing value")
+		return nil
+	}
+	for _, v := range s.Names {
+		ir.Names = append(ir.Names, v.String())
+	}
+	for _, v := range s.Types {
+		if v.IsList {
+			ir.Types = append(ir.Types, TypeList(v.TypeOfList.Literal))
+			continue
+		}
+		ir.Types = append(ir.Types, v.Tok.Literal)
+	}
+	for i := 0; i < len(s.Values); i++ {
+		typ, name := ir.Types[i], ir.Names[i]
+		if err := a.is(s.Values[i], typ); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		valToConv := s.Values[i]
+		isList := s.Types[i].IsList
+		typOfList := s.Types[i].TypeOfList
+		var irExpr IRExpression
+		if isList {
+			irExpr = a.toIrExpr(valToConv, typOfList.Literal)
+		} else {
+			irExpr = a.toIrExpr(valToConv)
+		}
+		ir.Values = append(ir.Values, irExpr)
+		if err := a.env.AddVar(name, &IRVariable{Name: name, Type: typ, Value: irExpr}); err != nil {
+			a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
+			return nil
+		}
 	}
 	return ir
 }
