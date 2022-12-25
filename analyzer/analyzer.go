@@ -26,6 +26,9 @@ type Analyzer struct {
 	curExpr *ast.Expr
 	env     *ScopeStack
 	Errs    []Err
+
+	// state
+	seenReturn bool
 }
 
 func New(program *ast.Program) *Analyzer {
@@ -128,10 +131,18 @@ func (a *Analyzer) typecheck() *IRProgram {
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level continue statement")
 		case *ast.PrefixExpr:
 			a.errorf(s.Tok.Line, s.Tok.Col, "top-level prefix-expression")
+		case *ast.StringLiteral:
+			a.errorf(s.Typ.Line, s.Typ.Col, "unused string literal")
+		case *ast.IntLiteral:
+			a.errorf(s.Typ.Line, s.Typ.Col, "unused integer literal")
+		case *ast.BoolLiteral:
+			a.errorf(s.Typ.Line, s.Typ.Col, "unused boolean literal")
+		case *ast.DatatypeLiteral:
+			a.errorf(s.Tok.Line, s.Tok.Col, "unused datatype literal")
 		case *ast.ReturnStatement:
 			a.errorf(s.Tok.Line, s.Tok.Col, "return statement outside a function body")
 		default:
-			if ir := a.typecheckStatement(s); ir != nil {
+			if ir := a.typecheckStatement(s, nil); ir != nil {
 				program.Push(ir)
 			}
 		}
@@ -179,14 +190,14 @@ func (a *Analyzer) is(expr ast.Expr, type_ string) error {
 	panic("is : unknown || " + type_ + " || " + expr.String())
 }
 
-func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
+func (a *Analyzer) typecheckStatement(s ast.Statement, returnWanted *returnWanted) IRStatement {
 	switch s := s.(type) {
 	case *ast.VariableDeclarationStatement:
 		return a.typecheckVarDecl(s)
 	case *ast.ListVariableDeclarationStatement:
 		return a.typecheckListDecl(s)
 	case *ast.IfStatement:
-		return a.typecheckIfStmt(s)
+		return a.typecheckIfStmt(s, returnWanted)
 	case *ast.DatatypeDeclaration:
 		return a.typecheckDatatypeDecl(s)
 	case *ast.SubsequentVariableDeclarationStatement:
@@ -194,9 +205,11 @@ func (a *Analyzer) typecheckStatement(s ast.Statement) IRStatement {
 	case *ast.ReassignmentStatement:
 		return a.typecheckReassignment(s)
 	case *ast.BlockStatement:
-		return a.typecheckBlock(s)
+		return a.typecheckBlock(s, returnWanted)
 	case *ast.LoopStatement:
-		return a.typecheckLoop(s)
+		return a.typecheckLoop(s, returnWanted)
+	case *ast.FunctionDeclarationStatement:
+		return a.typecheckFunDecl(s)
 	}
 	return nil
 }
@@ -361,7 +374,20 @@ func (a *Analyzer) funAndDatatypeDeclOnlyInGlobalScope(s ast.Statement) error {
 	return nil
 }
 
-func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
+func (a *Analyzer) returnCountAndTypeMustMatch(v ast.Statement, returnWanted *returnWanted) error {
+	if r, ok := v.(*ast.ReturnStatement); ok {
+		a.seenReturn = true
+		if err := returnWanted.checkCountError(r.Tok.Line, r.Tok.Col, len(r.ReturnValues)); err != nil {
+			return err
+		}
+		if err := returnWanted.checkTypeError(a, r.Tok.Line, r.Tok.Col, r.ReturnValues); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement, returnWanted *returnWanted) *IRIf {
 	a.env.EnterScope()
 	defer a.env.ExitScope()
 	if err := a.is(s.Cond, TypeBool); err != nil {
@@ -370,31 +396,39 @@ func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement) *IRIf {
 	}
 	ir := &IRIf{Cond: a.toIrExpr(s.Cond)}
 	for _, v := range s.Stmts {
+		if err := a.returnCountAndTypeMustMatch(v, returnWanted); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+		if stmtIr := a.typecheckStatement(v, returnWanted); stmtIr != nil {
 			ir.Block = append(ir.Block, stmtIr)
 		}
 	}
 	if s.Alternative != nil {
-		ir.Alternative = a.typecheckElseIfStmt(s.Alternative)
+		ir.Alternative = a.typecheckElseIfStmt(s.Alternative, returnWanted)
 	}
 	if s.Default != nil {
-		ir.Default = a.typecheckElseStmt(s.Default)
+		ir.Default = a.typecheckElseStmt(s.Default, returnWanted)
 	}
 	return ir
 }
 
-func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement) *IRElse {
+func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement, returnWanted *returnWanted) *IRElse {
 	ir := &IRElse{}
 	for _, v := range s.Stmts {
+		if err := a.returnCountAndTypeMustMatch(v, returnWanted); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+		if stmtIr := a.typecheckStatement(v, returnWanted); stmtIr != nil {
 			ir.Block = append(ir.Block, stmtIr)
 		}
 	}
@@ -403,26 +437,30 @@ func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement) *IRElse {
 
 // this is going to be mostly the same as typecheckIfStmt, but I don't want to create workarounds to prevent
 // entering a new scope when using typecheckIfStmt to typecheck an elseif statement.
-func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement) *IRElseIf {
+func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement, returnWanted *returnWanted) *IRElseIf {
 	if err := a.is(s.Cond, TypeBool); err != nil {
 		a.pushErr(err)
 		return nil
 	}
 	ir := &IRElseIf{Cond: a.toIrExpr(s.Cond)}
 	for _, v := range s.Stmts {
+		if err := a.returnCountAndTypeMustMatch(v, returnWanted); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		if stmtIr := a.typecheckStatement(v); stmtIr != nil {
+		if stmtIr := a.typecheckStatement(v, returnWanted); stmtIr != nil {
 			ir.Block = append(ir.Block, stmtIr)
 		}
 	}
 	if s.Alternative != nil {
-		ir.Alternative = a.typecheckElseIfStmt(s.Alternative)
+		ir.Alternative = a.typecheckElseIfStmt(s.Alternative, returnWanted)
 	}
 	if s.Default != nil {
-		ir.Default = a.typecheckElseStmt(s.Default)
+		ir.Default = a.typecheckElseStmt(s.Default, returnWanted)
 	}
 	return ir
 }
@@ -499,36 +537,40 @@ func (a *Analyzer) typecheckReassignment(s *ast.ReassignmentStatement) *IRReassi
 	return ir
 }
 
-func (a *Analyzer) illegalInBlock(s ast.Statement) error {
+func (a *Analyzer) illegalFunDatatypeBreakAndContinueIn(what string, s ast.Statement) error {
 	if err := a.funAndDatatypeDeclOnlyInGlobalScope(s); err != nil {
 		return err
 	}
 	switch s := s.(type) {
 	case *ast.BreakStatement:
-		return newErr(s.Tok.Line, s.Tok.Col, "break is not allowed inside blocks")
+		return newErr(s.Tok.Line, s.Tok.Col, "break is not allowed inside %ss", what)
 	case *ast.ContinueStatement:
-		return newErr(s.Tok.Line, s.Tok.Col, "continue is not allowed inside blocks")
+		return newErr(s.Tok.Line, s.Tok.Col, "continue is not allowed inside %ss", what)
 	}
 	return nil
 }
 
-func (a *Analyzer) typecheckBlock(s *ast.BlockStatement) *IRBlock {
+func (a *Analyzer) typecheckBlock(s *ast.BlockStatement, returnWanted *returnWanted) *IRBlock {
 	a.env.EnterScope()
 	defer a.env.ExitScope()
 	ir := &IRBlock{}
 	for _, v := range s.Stmts {
-		if err := a.illegalInBlock(v); err != nil {
+		if err := a.returnCountAndTypeMustMatch(v, returnWanted); err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		if stmt := a.typecheckStatement(v); stmt != nil {
+		if err := a.illegalFunDatatypeBreakAndContinueIn("block", v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		if stmt := a.typecheckStatement(v, returnWanted); stmt != nil {
 			ir.Stmts = append(ir.Stmts, stmt)
 		}
 	}
 	return ir
 }
 
-func (a *Analyzer) typecheckLoop(s *ast.LoopStatement) *IRLoop {
+func (a *Analyzer) typecheckLoop(s *ast.LoopStatement, returnWanted *returnWanted) *IRLoop {
 	ir := &IRLoop{}
 	if err := a.is(s.Cond, TypeBool); err != nil {
 		a.pushErr(err)
@@ -536,13 +578,108 @@ func (a *Analyzer) typecheckLoop(s *ast.LoopStatement) *IRLoop {
 	}
 	ir.Cond = a.toIrExpr(s.Cond)
 	for _, v := range s.Stmts {
+		if err := a.returnCountAndTypeMustMatch(v, returnWanted); err != nil {
+			a.pushErr(err)
+			return nil
+		}
 		if err := a.funAndDatatypeDeclOnlyInGlobalScope(v); err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		if stmt := a.typecheckStatement(v); stmt != nil {
+		if stmt := a.typecheckStatement(v, returnWanted); stmt != nil {
 			ir.Stmts = append(ir.Stmts, stmt)
 		}
 	}
 	return ir
+}
+
+func (a *Analyzer) typecheckFunDecl(s *ast.FunctionDeclarationStatement) *IRFunction {
+	a.env.EnterScope()
+	defer a.env.ExitScope()
+	defer func() { a.seenReturn = false }()
+	ir := &IRFunction{Name: s.Name.String(), TakesCount: len(s.Params), ReturnsCount: len(s.ReturnTypes)}
+	for _, v := range s.Params {
+		if v.IsList {
+			ir.Takes = append(ir.Takes, TypeList(v.TypeOfList.Literal))
+		} else {
+			ir.Takes = append(ir.Takes, v.Tok.Literal)
+		}
+		param := &IRVariable{Name: v.Name.String()} // value is non-significant.
+		if v.IsList {
+			param.Type = TypeList(v.TypeOfList.Literal)
+		} else {
+			param.Type = v.Tok.Literal
+		}
+		if err := a.env.AddVar(param.Name, param); err != nil {
+			a.errorf(v.Tok.Line, v.Tok.Col, "duplicate parameter '%s' name in function '%s'", param.Name, ir.Name)
+			return nil
+		}
+	}
+	for _, v := range s.ReturnTypes {
+		if v.IsList {
+			ir.Returns = append(ir.Returns, TypeList(v.TypeOfList.Literal))
+			continue
+		}
+		ir.Returns = append(ir.Returns, v.Tok.Literal)
+	}
+	for _, v := range s.Stmts {
+		returnWanted := &returnWanted{count: ir.ReturnsCount, types: ir.Returns}
+		if r, ok := v.(*ast.ReturnStatement); ok {
+			// this is a return statement
+			lenReturn := len(r.ReturnValues)
+			if ir.ReturnsCount == 0 && lenReturn > 0 {
+				// the function wasn't supposed to return anything, but we have got a return statement
+				// here.
+				a.errorf(r.Tok.Line, r.Tok.Col, "unwanted return value in function '%s'", ir.Name)
+				return nil
+			}
+			if err := returnWanted.checkCountError(r.Tok.Line, r.Tok.Col, lenReturn); err != nil {
+				a.pushErr(err)
+				return nil
+			}
+			// equal
+			for i, v := range r.ReturnValues {
+				if err := a.is(v, ir.Returns[i]); err != nil {
+					a.pushErr(err)
+					return nil
+				}
+			}
+			a.seenReturn = true
+		}
+		if err := a.illegalFunDatatypeBreakAndContinueIn("function declaration", v); err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		if stmt := a.typecheckStatement(v, returnWanted); stmt != nil {
+			ir.Block = append(ir.Block, stmt)
+		}
+	}
+	if !(a.seenReturn) && ir.ReturnsCount > 0 {
+		a.errorf(s.Tok.Line, s.Tok.Col, "missing return statement")
+	}
+	return ir
+}
+
+type returnWanted struct {
+	count int
+	types []string
+}
+
+func (r *returnWanted) checkCountError(line, col uint, gotCount int) error {
+	if r.count < gotCount {
+		return newErr(line, col, "excessive return value (want=%d got=%d)", r.count, gotCount)
+	} else if r.count > gotCount {
+		return newErr(line, col, "missing return value (want=%d got=%d)", r.count, gotCount)
+	}
+	return nil
+}
+
+func (r *returnWanted) checkTypeError(a *Analyzer, line, col uint, vals []ast.Expr) error {
+	// counts are equal. guaranteed.
+	for i := 0; i < len(vals); i++ {
+		if err := a.is(vals[i], r.types[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

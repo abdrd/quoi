@@ -334,3 +334,101 @@ func TestLoop1(t *testing.T) {
 		return
 	}
 }
+
+func TestTopLevel2(t *testing.T) {
+	input := `
+		"Hello".
+		1.
+		true.
+		User{}.
+		(+ 1 2).
+	`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
+
+func TestFun1(t *testing.T) {
+	input := `
+		fun a() -> {}
+		;fun b() -> string {}
+		;fun c() -> { return 1. }
+		;fun d() -> string { return 1. }
+		;fun e() -> string { return "Hello". }
+		;fun f(string b) -> string { return b. }
+		;int b = 6.
+		;fun g(string z) -> int { return b. }
+		;fun h(string b) -> string { return b. }
+		fun j(listof string names) -> listof string, int { return names, 5. }
+		`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
+
+func TestFun2(t *testing.T) {
+	/* 		fun a() -> int {
+		if true {
+			return 5.
+		}
+	}
+
+			fun a() -> int {
+			block end
+			if true {}
+			loop true {}
+		}
+
+				fun a() -> int {
+			if true {
+				if true {
+
+				} elseif false {
+					return "5".
+				}
+			}
+		}
+	*/
+	input := `
+		fun a() -> int, listof bool {
+			loop true {
+				if true {
+
+				} elseif false {
+
+				} else {
+					return 5, [true, true].
+					if true {
+						if true {
+
+						} else {
+							block
+								if true {
+									return 1, [false, "hey"].
+								} 
+							end
+						}
+					}
+				}
+			}
+		}
+	`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
