@@ -5,6 +5,11 @@ import (
 )
 
 type SymbolTable struct {
+	// this is not the best design.
+	// for example: we don't need `funcs`, or `datatypes`
+	// when we are in a block that is not the global scope.
+	//
+	// ~ this is fine for this project.
 	vars      map[string]*IRVariable
 	funcs     map[string]*IRFunction
 	datatypes map[string]*IRDatatype
@@ -20,10 +25,7 @@ func NewSymbolTable() *SymbolTable {
 
 // return nil if not found
 func (s *SymbolTable) getVar(ident string) *IRVariable {
-	if v, found := s.vars[ident]; found {
-		return v
-	}
-	return nil
+	return s.vars[ident]
 }
 
 func (s *SymbolTable) addVar(ident string, decl *IRVariable) error {
@@ -43,10 +45,7 @@ func (s *SymbolTable) updateVar(ident string, newVal IRExpression) error {
 }
 
 func (s *SymbolTable) getFunc(ident string) *IRFunction {
-	if v, found := s.funcs[ident]; found {
-		return v
-	}
-	return nil
+	return s.funcs[ident]
 }
 
 func (s *SymbolTable) addFunc(decl *IRFunction) error {
@@ -59,10 +58,7 @@ func (s *SymbolTable) addFunc(decl *IRFunction) error {
 }
 
 func (s *SymbolTable) getDatatype(ident string) *IRDatatype {
-	if v, found := s.datatypes[ident]; found {
-		return v
-	}
-	return nil
+	return s.datatypes[ident]
 }
 
 func (s *SymbolTable) addDatatype(decl *IRDatatype) error {

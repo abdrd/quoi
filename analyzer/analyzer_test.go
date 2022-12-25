@@ -352,3 +352,29 @@ func TestTopLevel2(t *testing.T) {
 		return
 	}
 }
+
+func TestFun1(t *testing.T) {
+	input := `
+		fun a() -> {}
+		;fun b() -> string {}
+		;fun c() -> { return 1. }
+		;fun d() -> string { return 1. }
+		fun e() -> string { return "Hello". }
+		fun f(string b) -> string { return b. }
+		int b = 6.
+		fun g(string z) -> int { return b. }
+		fun h(string b) -> string { return b. }
+		fun j(listof string names) -> listof string, int { return names, 5. }
+		fun k() -> int {
+			if true { return 5. }
+		}
+		`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
