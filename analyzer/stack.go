@@ -13,13 +13,34 @@ type SymbolTable struct {
 	vars      map[string]*IRVariable
 	funcs     map[string]*IRFunction
 	datatypes map[string]*IRDatatype
+
+	// this field exists because:
+	// if typechecking of a variable fails,
+	// we don't add that variable to 'vars';
+	// and if, in the future, we'd like to access
+	// that variable, we get an error.
+	//
+	// suppose a situation like this:
+	// 	int a = (+ "Hello " "world!").
+	//  int b = a.
+	//
+	// the analyzer reports two errors:
+	//	1- expected 'int', got 'string'
+	//	2- reference to non-existent variable 'a'
+	//
+	// but, I don't want the second error to appear, because
+	// it is redundant.
+	// to prevent that, I am declaring this field here.
+	//
+	failedVars map[string]bool
 }
 
 func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
-		vars:      make(map[string]*IRVariable),
-		funcs:     make(map[string]*IRFunction),
-		datatypes: make(map[string]*IRDatatype),
+		vars:       make(map[string]*IRVariable),
+		funcs:      make(map[string]*IRFunction),
+		datatypes:  make(map[string]*IRDatatype),
+		failedVars: make(map[string]bool),
 	}
 }
 
@@ -42,6 +63,14 @@ func (s *SymbolTable) updateVar(ident string, newVal IRExpression) error {
 	}
 	s.vars[ident].Value = newVal
 	return nil
+}
+
+func (s *SymbolTable) isFailedVar(ident string) bool {
+	return s.failedVars[ident]
+}
+
+func (s *SymbolTable) addFailedVar(ident string) {
+	s.failedVars[ident] = true
 }
 
 func (s *SymbolTable) getFunc(ident string) *IRFunction {
@@ -125,11 +154,23 @@ func (ss *ScopeStack) GetVar(ident string) *IRVariable {
 
 // add variable to the symbol table of the scope that is at the top of ss.Scopes
 func (ss *ScopeStack) AddVar(ident string, decl *IRVariable) error {
-	return ss.Scopes[len(ss.Scopes)-1].symbolTable.addVar(ident, decl)
+	err := ss.Scopes[len(ss.Scopes)-1].symbolTable.addVar(ident, decl)
+	if err != nil {
+		ss.AddFailedVar(ident)
+	}
+	return err
 }
 
 func (ss *ScopeStack) UpdateVar(ident string, newVal IRExpression) error {
 	return ss.Scopes[len(ss.Scopes)-1].symbolTable.updateVar(ident, newVal)
+}
+
+func (ss *ScopeStack) IsFailedVar(ident string) bool {
+	return ss.Scopes[len(ss.Scopes)-1].symbolTable.isFailedVar(ident)
+}
+
+func (ss *ScopeStack) AddFailedVar(ident string) {
+	ss.Scopes[len(ss.Scopes)-1].symbolTable.addFailedVar(ident)
 }
 
 func (ss *ScopeStack) GetFunc(ident string) *IRFunction {
