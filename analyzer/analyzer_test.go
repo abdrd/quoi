@@ -55,30 +55,28 @@ func TestFirstPass2(t *testing.T) {
 
 func TestPrefExpr1(t *testing.T) {
 	input := `
-		;int a = (+ 1 2).
-		;int a = "3".
-		;string a = (+ 1 2).
-		;int a = (+ "hello " "world").
-		;int a = (+ 1 "hello").
+		int a = (+ 1 2).
+		int a = "3".
+		string a = (+ 1 2).
+		int a = (+ "hello " "world").
+		int a = (+ 1 "hello").
 		int b = 5.
-		int a = (+ 1 b).
+		bool a = (+ 1 b).
 		`
 	a := _new(input)
-	program := a.Analyze()
+	_ = a.Analyze()
 	if len(a.Errs) > 0 {
 		for _, v := range a.Errs {
 			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
 		}
 		return
 	}
-	for _, v := range program.IRStatements {
-		fmt.Println(v)
-	}
 }
 
 func TestList1(t *testing.T) {
 	input := `
 			;listof int nx = ["hey", 2, 3].
+			;listof string nx = ["hey", "2", "3"].
 			;listof string names = ["jennifer"].
 			;listof int numbers = [40, 50, 7, 567, 517].
 			;listof int numbers2 = numbers.
@@ -89,40 +87,40 @@ func TestList1(t *testing.T) {
 			;listof int a = [1].
 			int a = 5.
 			int b = a.
-			int c = (+ "hey" b).
-			listof string strings3 = c.
+			;int c = (+ "hey" b).
+			
+			;listof int c = [(+ a b)].
+			;listof string strings3 = c.
+
+			;listof int nx = 5.
+			listof int nx = [5].
 			`
 	a := _new(input)
-	program := a.Analyze()
+	_ = a.Analyze()
 	if len(a.Errs) > 0 {
 		for _, v := range a.Errs {
 			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
 		}
 		return
-	}
-	for _, v := range program.IRStatements {
-		fmt.Println(v)
 	}
 }
 
 func TestOps1(t *testing.T) {
 	input := `
-		;int a = (+ 1).
-		;int b = (+ "hey" " world").
-		;int c = (/ 2).
-		;int z = (lt 5 4).
-		;bool x = (not (lt 5 6)).
+		int a = (+ 1).
+		int b = (+ "hey" " world").
+		int c = (/ 2).
+		int z = (lt 5 4).
+		bool x = (not (lt 5 6)).
+		bool q = (not (and true (lt 5 6)))
 		`
 	a := _new(input)
-	program := a.Analyze()
+	_ = a.Analyze()
 	if len(a.Errs) > 0 {
 		for _, v := range a.Errs {
 			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
 		}
 		return
-	}
-	for _, v := range program.IRStatements {
-		fmt.Println(v)
 	}
 }
 
@@ -133,15 +131,12 @@ func TestTopLevel1(t *testing.T) {
 		(+ 1 2).
 		`
 	a := _new(input)
-	program := a.Analyze()
+	_ = a.Analyze()
 	if len(a.Errs) > 0 {
 		for _, v := range a.Errs {
 			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
 		}
 		return
-	}
-	for _, v := range program.IRStatements {
-		fmt.Println(v)
 	}
 }
 
@@ -153,13 +148,14 @@ func TestIf1(t *testing.T) {
 		} elseif false {
 			int y = 6.
 		} else {
-			; this 'y' should refer to "int y = 6" above.
+			; this 'y' should refer to 'string y = "Hello"' above.
 			int x = y.
 		}
 		;if "hey" {}
 		if (lt 5 6) {
 			string q = "hey".
 		}
+		;bool p = (and true false).
 		;string qq = q.
 	`
 	a := _new(input)
@@ -176,7 +172,7 @@ func TestIf1(t *testing.T) {
 func TestIf2(t *testing.T) {
 	input := `
 		if true {
-			datatype X {}
+			;datatype X {}
 		} elseif false {
 			fun w() -> {}
 		} else {
@@ -201,8 +197,10 @@ func TestDatatype1(t *testing.T) {
 			string x
 			;int x
 			int y
-			User user
+			User user	
 		}
+
+		;datatype User {}
 	`
 	a := _new(input)
 	program := a.Analyze()
@@ -217,7 +215,7 @@ func TestDatatype1(t *testing.T) {
 
 func TestOps2(t *testing.T) {
 	input := `
-		;bool x = (= 5 5).
+		bool x = (= 5 5).
 		;bool x = (= 5 "hey").
 		;bool x = (= "hey" 5).
 		;int x = (= "hey" "hey").
@@ -242,8 +240,8 @@ func TestSubseq1(t *testing.T) {
 	input := `
 		listof int nx, listof string strx = [1, 2, 3], ["h", "e", "y"].
 		listof int nx2, listof string strx2 = nx, strx.
-		;listof int nxq = strx.
-		;int x, listof string strx, bool y = 1, [], true.
+		listof int nxq = strx.
+		int x, listof string strx, bool y = 1, [], true.
 		`
 	a := _new(input)
 	program := a.Analyze()
@@ -356,15 +354,16 @@ func TestTopLevel2(t *testing.T) {
 func TestFun1(t *testing.T) {
 	input := `
 		fun a() -> {}
-		;fun b() -> string {}
-		;fun c() -> { return 1. }
-		;fun d() -> string { return 1. }
-		;fun e() -> string { return "Hello". }
-		;fun f(string b) -> string { return b. }
-		;int b = 6.
-		;fun g(string z) -> int { return b. }
-		;fun h(string b) -> string { return b. }
+		fun b() -> string {}
+		fun c() -> { return 1. }
+		fun d() -> string { return 1. }
+		fun e() -> string { return "Hello". }
+		fun f(string b) -> string { return b. }
+		int b = 6.
+		fun g(string z) -> int { return b. }
+		fun h(string b) -> string { return b. }
 		fun j(listof string names) -> listof string, int { return names, 5. }
+		fun CH(string b) -> int { return b. } 
 		`
 	a := _new(input)
 	_ = a.Analyze()
@@ -423,6 +422,27 @@ func TestFun2(t *testing.T) {
 			}
 		}
 	`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
+
+func TestFailedVar1(t *testing.T) {
+	input := `
+		int x = "5".
+		int y = x.
+		string z = 4.
+
+		listof int nx = (+ 1 1).
+		listof string names = nx.
+		listof bool m = [true, false].
+		listof bool m = [true, false].
+`
 	a := _new(input)
 	_ = a.Analyze()
 	if len(a.Errs) > 0 {
