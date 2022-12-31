@@ -576,20 +576,22 @@ func TestGeneral2(t *testing.T) {
 	fmt.Println(program)
 }
 
-func TestGeneral3(t *testing.T) {
+func TestFC2(t *testing.T) {
 	input := `
-		Stdout::println("hello", 2).
+		;Stdout::println("hello", 2).
 		;Stdout::idontknow().
 		;String::from_int(5).
 		;String::fromm_int(5).
 
-		Stdout::println( String::from_int( 5, 1 ) ).
+		;Stdout::println( String::from_int( 5 ) ).
 
 		fun a (string s) -> string { return s. }
 
 		;string s = a().
 
-		Stdout::println( a() ).
+		;Stdout::println( a("hello world") ).
+
+		;Stdout::println().
 
 		fun returns_two_strings() -> string, string { return "He", "He". }
 
@@ -599,8 +601,22 @@ func TestGeneral3(t *testing.T) {
 
 		;b( returns_two_strings() ).
 		;b(1, 2).
-		b().
+		;b().
+		;b(true).
+		;b(b("hey")).
 		
+		;b(2).
+
+		fun c(string a) -> int { return 5. } 
+
+		int xxx = c(2).
+
+		;int _2pow2 = Math::pow(2, 2, 3).
+		;int _2pow2 = Math::pow(2).
+		;int _2pow2 = Math::powW("hey", 2).
+		fun _2ints() -> int, int { return 2, 2. }
+		;int _2pow = Math::pow("hey", 2).
+		int _2pow = Math::pow(_2ints()).
 	`
 	a := _new(input)
 	program := a.Analyze()
