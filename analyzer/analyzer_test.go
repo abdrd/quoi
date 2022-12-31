@@ -518,3 +518,129 @@ func TestGeneral1(t *testing.T) {
 
 	fmt.Println(program)
 }
+
+func TestGeneral2(t *testing.T) {
+	input := `
+	int my_age = 21.
+	if (lte my_age 18) {
+		;warn("you are not an adult").
+	}
+	string name, int age2 = "Jennifer", 44.
+	int age_total = (+ my_age age2).
+
+	datatype Person {
+		string name
+		int age
+		bool alive
+	}
+	;Person j = Person { name=name age=age2 }.
+	;Person j2 = Person { name=(+ 1 2) }.
+	;Person j3 = Person { whatIsThis=Person{} }.
+	
+	fun example_function() -> string, bool { return "Hello", true. }
+
+	;Person j4 = Person { name=example_function() }.
+
+	listof string letters = ["A", "B", "C"].
+	string B = (' letters 1).
+
+	listof int numbers = [1, 2, 3, 4].
+	int N = (' numbers 1).
+
+	N = 1415.
+
+	block 
+		Person JENNIFER = Person { name="Jennifer" age=44 }. 
+		Person p4 = JENNIFER.
+	end
+	;Person p4 = JENNIFER.
+
+	fun give_me(string s) -> string {
+		return s.
+	}
+
+	fun I_Return_Nothing() -> {}
+
+	int s = give_me("hey").
+	int vv = I_Return_Nothing().
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+
+	fmt.Println(program)
+}
+
+func TestGeneral3(t *testing.T) {
+	input := `
+		Stdout::println("hello", 2).
+		;Stdout::idontknow().
+		;String::from_int(5).
+		;String::fromm_int(5).
+
+		Stdout::println( String::from_int( 5, 1 ) ).
+
+		fun a (string s) -> string { return s. }
+
+		;string s = a().
+
+		Stdout::println( a() ).
+
+		fun returns_two_strings() -> string, string { return "He", "He". }
+
+		;string xx = a( returns_two_strings() ).
+
+		fun b(string s) -> {  }
+
+		;b( returns_two_strings() ).
+		;b(1, 2).
+		b().
+		
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+
+	fmt.Println(program)
+}
+
+func TestGetSet1(t *testing.T) {
+	input := `	
+		;int u = 5.
+		datatype User {
+			string name
+			int age
+		}
+
+		User u = User {}.
+
+		;int n = (get u name).
+		;bool n = (get u name).
+		string n = (get u name).
+		;User user1 = (get u no_field).
+
+		;u = (set u name 5).
+		;u = (set u age "hey").
+		;u = (set u unknown City{ name="City 1" }).
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+
+	fmt.Println(program)
+}

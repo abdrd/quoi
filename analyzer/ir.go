@@ -290,11 +290,11 @@ func (f *IRFunctionCallFromNamespace) String() string {
 	if f == nil {
 		return "<nil_fcfn>"
 	}
-	res := fmt.Sprintf("fcfn!(name:%s", f.Namespace+f.Name)
+	res := fmt.Sprintf("fcfn!(name:%s", f.Namespace+"::"+f.Name)
 	res += fmt.Sprintf(" takes:#%d[", f.TakesCount)
 	for i, v := range f.Takes {
 		res += v.String()
-		if i != f.ReturnsCount-1 {
+		if i != f.TakesCount-1 {
 			res += " "
 		}
 	}
@@ -412,7 +412,7 @@ func (s *IRString) String() string {
 	if s == nil {
 		return "<nil_str>"
 	}
-	return s.Value
+	return fmt.Sprintf("\"%s\"", s.Value)
 }
 
 func (l *IRList) String() string {

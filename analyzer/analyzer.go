@@ -26,6 +26,7 @@ type Analyzer struct {
 	program *ast.Program
 	curExpr *ast.Expr
 	env     *ScopeStack
+	std     *StandardLibrary
 	Errs    []Err
 
 	// state
@@ -33,7 +34,9 @@ type Analyzer struct {
 }
 
 func New(program *ast.Program) *Analyzer {
-	return &Analyzer{program: program, curExpr: nil, env: NewScopeStack()}
+	a := &Analyzer{program: program, curExpr: nil, env: NewScopeStack()}
+	a.std = InitStandardLibrary(a)
+	return a
 }
 
 func (a *Analyzer) pushErr(err error) {
@@ -97,6 +100,17 @@ func (a *Analyzer) registerFuncSignature(s *ast.FunctionDeclarationStatement) er
 		ir.Returns = append(ir.Returns, fnReturnTypeRepr(v))
 	}
 	return a.env.AddFunc(ir.Name, ir)
+}
+
+func (a *Analyzer) registerStdFuncSignature(ns, name string, s *ast.FunctionDeclarationStatement) {
+	ir := &IRFunction{Name: s.Name.String(), TakesCount: len(s.Params), ReturnsCount: len(s.ReturnTypes)}
+	for _, v := range s.Params {
+		ir.Takes = append(ir.Takes, fnParamTypeRepr(v))
+	}
+	for _, v := range s.ReturnTypes {
+		ir.Returns = append(ir.Returns, fnReturnTypeRepr(v))
+	}
+	a.std.AddFunc(ns, name, ir)
 }
 
 func (a *Analyzer) registerDatatype(s *ast.DatatypeDeclaration) error {
@@ -199,7 +213,7 @@ func (a *Analyzer) matchTypes(lhs, rhs *Type) error {
 	if lhsExhausted && !(rhsExhausted) {
 		return newErr(lhs.line, lhs.col, "unused value of type '%s'", rhs.typ)
 	} else if !(lhsExhausted) && rhsExhausted {
-		return newErr(lhs.line, lhs.col, "variable assigned to nothing")
+		return newErr(lhs.line, lhs.col, "value assigned to nothing")
 	} else if lhs.typ != rhs.typ {
 		return newErr(lhs.line, lhs.col, "mismatched types '%s', and '%s'", lhs.typ, rhs.typ)
 	}
@@ -262,6 +276,8 @@ func (a *Analyzer) match(expr ast.Expr, t *Type) error {
 			return newErr(expr.Tok.Line, expr.Tok.Col, "unused value from function call '%s'", expr.Ident)
 		} else if !(tExhausted) && fnTypeExhausted {
 			return newErr(expr.Tok.Line, expr.Tok.Col, "variable assigned to nothing")
+		} else if t.typ != fnType.typ {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s'", t.typ, fnType.typ)
 		}
 		return nil
 	case *ast.PrefixExpr:
@@ -356,9 +372,18 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 		}
 		return NewType(expr.Tok.Literal, expr.Tok.Line, expr.Tok.Col), nil
 	case *ast.FunctionCall:
+		lenArgs := len(expr.Args)
 		fn := a.env.GetFunc(expr.Tok.Literal)
 		if fn == nil {
 			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "invoking of non-existent function '%s'", expr.Ident)
+		}
+		if fn.TakesCount == 0 && lenArgs != 0 {
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "function '%s' takes no arguments", expr.Ident)
+		}
+		if fn.TakesCount > lenArgs {
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "function '%s' was given insufficient number of arguments (want=%d got=%d)", expr.Ident, fn.ReturnsCount, lenArgs)
+		} else if fn.TakesCount < lenArgs {
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "function '%s' was given excessive number of arguments (want=%d got=%d)", expr.Ident, fn.ReturnsCount, lenArgs)
 		}
 		if fn.ReturnsCount == 0 {
 			return NewType(TypeVoid, expr.Tok.Line, expr.Tok.Col), nil
@@ -383,6 +408,48 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 				continue
 			}
 			t2 := NewType(r, expr.Tok.Line, expr.Tok.Col)
+			t.setNext(t2)
+			t = t2
+		}
+		return tOriginal, nil
+	case *ast.FunctionCallFromNamespace:
+		// very similar to above case
+
+		lenArgs := len(expr.Function.Args)
+		line, col := expr.Namespace.Tok.Line, expr.Namespace.Tok.Col
+		ns, name := expr.Namespace.Tok.Literal, expr.Function.Ident.String()
+		fn := a.std.GetFunc(ns, name)
+		if fn == nil {
+			return nil, newErr(line, col, "unknown function '%s::%s'", ns, name)
+		}
+		argLen := len(expr.Function.Args)
+		if argLen > fn.TakesCount {
+			return nil, newErr(line, col, "excessive number of arguments passed to function '%s::%s' (want=%d got=%d)", ns, name, fn.TakesCount, argLen)
+		} else if argLen < fn.TakesCount {
+			return nil, newErr(line, col, "insufficient number of arguments passed to function '%s::%s' (want=%d got=%d)", ns, name, fn.TakesCount, argLen)
+		}
+		if fn.TakesCount == 0 && lenArgs != 0 {
+			return nil, newErr(line, col, "function '%s::%s' takes no arguments", ns, name)
+		}
+		if fn.TakesCount > lenArgs {
+			return nil, newErr(line, col, "function '%s::%s' was given insufficient number of arguments (want=%d got=%d)", ns, name, fn.ReturnsCount, lenArgs)
+		} else if fn.TakesCount < lenArgs {
+			return nil, newErr(line, col, "function '%s::%s' was given excessive number of arguments (want=%d got=%d)", ns, name, fn.ReturnsCount, lenArgs)
+		}
+		if fn.ReturnsCount == 0 {
+			return NewType(TypeVoid, line, col), nil
+		}
+		if fn.ReturnsCount == 1 {
+			return NewType(fn.Returns[0], line, col), nil
+		}
+		t := NewType(fn.Returns[0], line, col)
+		tOriginal := t
+		for i, r := range fn.Returns {
+			if i == 0 {
+				// skip the first one to prevent duplicate type at the beginning
+				continue
+			}
+			t2 := NewType(r, line, col)
 			t.setNext(t2)
 			t = t2
 		}
@@ -484,6 +551,61 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 				return NewType(typOfList, expr.Tok.Line, expr.Tok.Col), nil
 			}
 			return NewType(TypeString, expr.Tok.Line, expr.Tok.Col), nil
+		case token.GET:
+			if len(expr.Args) != 2 {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "operator 'get' expects exactly two arguments")
+			}
+			typ, err := a.infer(expr.Args[0])
+			if err != nil {
+				return nil, err
+			}
+			dt := a.env.GetDatatype(typ.typ)
+			if dt == nil {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "no variable called '%s' that is a datatype", expr.Args[0])
+			}
+			field := expr.Args[1]
+			// field is an identifier
+			var found bool
+			var retType string
+			for _, v := range dt.Fields {
+				if v.Name == field.String() {
+					found = true
+					retType = v.Type
+				}
+			}
+			if !(found) {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "no field named '%s' in datatype '%s'", field, dt.Name)
+			}
+			return NewType(retType, expr.Tok.Line, expr.Tok.Col), nil
+		case token.SET:
+			if len(expr.Args) != 3 {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "operator 'set' expects exactly three arguments")
+			}
+			typ, err := a.infer(expr.Args[0])
+			if err != nil {
+				return nil, err
+			}
+			dt := a.env.GetDatatype(typ.typ)
+			if dt == nil {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "no variable called '%s' that is a datatype", expr.Args[0])
+			}
+			field := expr.Args[1]
+			// field is an identifier
+			var found bool
+			var fieldType string
+			for _, v := range dt.Fields {
+				if v.Name == field.String() {
+					found = true
+					fieldType = v.Type
+				}
+			}
+			if !(found) {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "no field named '%s' in datatype '%s'", field, dt.Name)
+			}
+			if err := a.match(expr.Args[2], NewType(fieldType, expr.Tok.Line, expr.Tok.Col)); err != nil {
+				return nil, err
+			}
+			return NewType(dt.Name, expr.Tok.Line, expr.Tok.Col), nil
 		}
 	}
 	panic(fmt.Sprintf("--UNREACHABLE--\n*Analyzer.infer: unknown expr '%s'\n", expr.String()))
@@ -511,6 +633,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement, returnWanted *returnWante
 		return a.typecheckFunDecl(s)
 	case *ast.FunctionCall:
 		return a.typecheckFunCall(s)
+	case *ast.FunctionCallFromNamespace:
+		return a.typecheckFunCallFromNamespace(s)
 	}
 	return nil
 }
@@ -549,6 +673,19 @@ func (a *Analyzer) toIrExpr(expr ast.Expr, typeOfList ...string) IRExpression {
 		fn := a.env.GetFunc(fnName)
 		ir := &IRFunctionCall{Name: fnName, TakesCount: fn.TakesCount, ReturnsCount: fn.ReturnsCount, Returns: fn.Returns}
 		for _, v := range expr.Args {
+			ir.Takes = append(ir.Takes, a.toIrExpr(v))
+		}
+		return ir
+	case *ast.FunctionCallFromNamespace:
+		fnName, ns := expr.Function.Ident.String(), expr.Namespace.Tok.Literal
+		fn := a.std.GetFunc(ns, fnName)
+		ir := &IRFunctionCallFromNamespace{Namespace: ns, IRFunctionCall: IRFunctionCall{
+			Name:         fnName,
+			Returns:      fn.Returns,
+			TakesCount:   fn.TakesCount,
+			ReturnsCount: fn.ReturnsCount,
+		}}
+		for _, v := range expr.Function.Args {
 			ir.Takes = append(ir.Takes, a.toIrExpr(v))
 		}
 		return ir
@@ -989,8 +1126,60 @@ func (a *Analyzer) typecheckFunCall(s *ast.FunctionCall) *IRFunctionCall {
 		a.errorf(s.Tok.Line, s.Tok.Col, "unused value from function call '%s'", fnName)
 		return nil
 	}
+	//lenArgs := len(s.Args)
+	/*
+		if fr.TakesCount > lenArgs {
+			a.errorf(s.Tok.Line, s.Tok.Col, "missing arguments to function call '%s'", fnName)
+			return nil
+		} else if fr.TakesCount < lenArgs {
+			a.errorf(s.Tok.Line, s.Tok.Col, "excessive number of arguments to function call '%s'", fnName)
+			return nil
+		}*/
+	for i := 0; i < len(s.Args); i++ {
+		t, err := a.infer(s.Args[i])
+		if err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		paramType := NewType(fr.Takes[i], s.Tok.Line, s.Tok.Col)
+		if err := a.matchTypes(paramType, t); err != nil {
+			if strings.HasPrefix(err.Error(), "unused") {
+				a.errorf(s.Tok.Line, s.Tok.Col, "excessive number of arguments passed to function call '%s'", fnName)
+			} else if strings.HasPrefix(err.Error(), "mismatched") {
+				a.errorf(s.Tok.Line, s.Tok.Col, "wrong type of argument passed to function '%s'", fnName)
+			} else if strings.HasPrefix(err.Error(), "value") {
+				a.errorf(s.Tok.Line, s.Tok.Col, "missing argument to function call '%s'", fnName)
+			} else {
+				a.pushErr(err)
+			}
+			return nil
+		}
+	}
 	ir.Returns = fr.Returns
 	for _, v := range s.Args {
+		ir.Takes = append(ir.Takes, a.toIrExpr(v))
+	}
+	ir.ReturnsCount = len(ir.Returns)
+	ir.TakesCount = len(ir.Takes)
+	return ir
+}
+
+func (a *Analyzer) typecheckFunCallFromNamespace(s *ast.FunctionCallFromNamespace) *IRFunctionCallFromNamespace {
+	fnName := s.Function.Ident.String()
+	irFnCall := IRFunctionCall{Name: fnName}
+	ir := &IRFunctionCallFromNamespace{Namespace: s.Namespace.Tok.Literal, IRFunctionCall: irFnCall}
+	line, col := s.Namespace.Tok.Line, s.Namespace.Tok.Col
+	fr := a.std.GetFunc(ir.Namespace, fnName)
+	if fr == nil {
+		a.errorf(line, col, "invoking of non-existent function '%s::%s'", ir.Namespace, fnName)
+		return nil
+	}
+	if fr.ReturnsCount > 0 {
+		a.errorf(line, col, "unused value from function call '%s::%s'", ir.Namespace, fnName)
+		return nil
+	}
+	ir.Returns = fr.Returns
+	for _, v := range s.Function.Args {
 		ir.Takes = append(ir.Takes, a.toIrExpr(v))
 	}
 	ir.ReturnsCount = len(ir.Returns)
