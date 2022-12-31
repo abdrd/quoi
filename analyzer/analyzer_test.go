@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"fmt"
+	"os"
 	"quoi/lexer"
 	"quoi/parser"
 	"testing"
@@ -9,13 +10,19 @@ import (
 
 func _new(input string) *Analyzer {
 	l := lexer.New(input)
-	for _, v := range l.Errs {
-		fmt.Printf("lexer err: %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+	if len(l.Errs) > 0 {
+		for _, v := range l.Errs {
+			fmt.Printf("lexer err: %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		os.Exit(1)
 	}
 	p := parser.New(l)
 	program := p.Parse()
-	for _, v := range p.Errs {
-		fmt.Printf("parser err: %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+	if len(p.Errs) > 0 {
+		for _, v := range p.Errs {
+			fmt.Printf("parser err: %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		os.Exit(1)
 	}
 	a := New(program)
 	return a
@@ -262,21 +269,13 @@ func TestReas1(t *testing.T) {
 		int q = x.
 	`
 	a := _new(input)
-	program := a.Analyze()
+	_ = a.Analyze()
 	if len(a.Errs) > 0 {
 		for _, v := range a.Errs {
 			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
 		}
 		return
 	}
-	/*
-		fmt.Println(program.IRStatements[0].(*IRVariable).Value.(*IRInt).Value)
-		fmt.Println(program.IRStatements[1].(*IRReassigment).NewValue.(*IRInt).Value)
-	*/
-	fmt.Println(program.IRStatements[0].(*IRVariable).Value)
-	fmt.Println(program.IRStatements[1].(*IRVariable).Value.(*IRVariableReference).Value)
-	fmt.Println(program.IRStatements[2].(*IRReassigment).NewValue)
-	fmt.Println(program.IRStatements[3].(*IRVariable).Value.(*IRVariableReference).Value)
 }
 
 func TestBlock1(t *testing.T) {
@@ -295,14 +294,14 @@ func TestBlock1(t *testing.T) {
 		end
 	`
 	a := _new(input)
-	program := a.Analyze()
+	_ = a.Analyze()
 	if len(a.Errs) > 0 {
 		for _, v := range a.Errs {
 			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
 		}
 		return
 	}
-	fmt.Println(program.IRStatements[1].(*IRBlock).Stmts[1].(*IRVariable).Value.(*IRPrefExpr).Operands[0].(*IRVariableReference).Value)
+	//fmt.Println(program.IRStatements[1].(*IRBlock).Stmts[1].(*IRVariable).Value.(*IRPrefExpr).Operands[0].(*IRVariableReference).Value)
 }
 
 func TestLoop1(t *testing.T) {
@@ -451,4 +450,71 @@ func TestFailedVar1(t *testing.T) {
 		}
 		return
 	}
+}
+
+func TestFC1(t *testing.T) {
+	input := `
+	fun fn2() -> int, bool { return 5, true. }
+
+	;int x, bool y, int z = fn2().
+	int q, bool qb = fn2().
+	bool yy = qb.
+	int qq = yy.
+	`
+	a := _new(input)
+	_ = a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+}
+
+func TestGeneral1(t *testing.T) {
+	input := `
+		int my_age = 21.
+		if (lte my_age 18) {
+			;warn("you are not an adult").
+		}
+		string name, int age2 = "Jennifer", 44.
+		int age_total = (+ my_age age2).
+
+		datatype Person {
+			string name
+			int age
+			bool alive
+		}
+		;Person j = Person { name=name age=age2 }.
+		;Person j2 = Person { name=(+ 1 2) }.
+		;Person j3 = Person { whatIsThis=Person{} }.
+		
+		fun example_function() -> string, bool { return "Hello", true. }
+
+		;Person j4 = Person { name=example_function() }.
+
+		listof string letters = ["A", "B", "C"].
+		string B = (' letters 1).
+
+		listof int numbers = [1, 2, 3, 4].
+		int N = (' numbers 1).
+
+		N = 1415.
+
+		block 
+			Person JENNIFER = Person { name="Jennifer" age=44 }. 
+			Person p4 = JENNIFER.
+		end
+		;Person p4 = JENNIFER.
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+
+	fmt.Println(program)
 }

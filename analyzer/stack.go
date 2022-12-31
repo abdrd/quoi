@@ -5,12 +5,8 @@ import (
 )
 
 type SymbolTable struct {
-	// this is not the best design.
-	// for example: we don't need `funcs`, or `datatypes`
-	// when we are in a block that is not the global scope.
-	//
-	// ~ this is fine for this project.
-	vars      map[string]*IRVariable
+	// name: type
+	vars      map[string]string
 	funcs     map[string]*IRFunction
 	datatypes map[string]*IRDatatype
 
@@ -37,31 +33,24 @@ type SymbolTable struct {
 
 func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
-		vars:       make(map[string]*IRVariable),
-		funcs:      make(map[string]*IRFunction),
-		datatypes:  make(map[string]*IRDatatype),
+		vars:      make(map[string]string),
+		funcs:     make(map[string]*IRFunction),
+		datatypes: make(map[string]*IRDatatype),
+
 		failedVars: make(map[string]bool),
 	}
 }
 
-// return nil if not found
-func (s *SymbolTable) getVar(ident string) *IRVariable {
+func (s *SymbolTable) getVar(ident string) string {
 	return s.vars[ident]
 }
 
-func (s *SymbolTable) addVar(ident string, decl *IRVariable) error {
-	if v := s.getVar(ident); v != nil {
+func (s *SymbolTable) addVar(ident, type_ string) error {
+	d := s.getVar(ident)
+	if len(d) > 0 {
 		return fmt.Errorf("variable '%s' is already defined", ident)
 	}
-	s.vars[ident] = decl
-	return nil
-}
-
-func (s *SymbolTable) updateVar(ident string, newVal IRExpression) error {
-	if s.getVar(ident) == nil {
-		return fmt.Errorf("trying to update non-existent variable '%s'", ident)
-	}
-	s.vars[ident].Value = newVal
+	s.vars[ident] = type_
 	return nil
 }
 
@@ -77,12 +66,11 @@ func (s *SymbolTable) getFunc(ident string) *IRFunction {
 	return s.funcs[ident]
 }
 
-func (s *SymbolTable) addFunc(decl *IRFunction) error {
-	ident := decl.Name
+func (s *SymbolTable) addFunc(ident string, rec *IRFunction) error {
 	if v := s.getFunc(ident); v != nil {
 		return fmt.Errorf("function '%s' is already declared", ident)
 	}
-	s.funcs[ident] = decl
+	s.funcs[ident] = rec
 	return nil
 }
 
@@ -90,12 +78,11 @@ func (s *SymbolTable) getDatatype(ident string) *IRDatatype {
 	return s.datatypes[ident]
 }
 
-func (s *SymbolTable) addDatatype(decl *IRDatatype) error {
-	ident := decl.Name
+func (s *SymbolTable) addDatatype(ident string, rec *IRDatatype) error {
 	if v := s.getDatatype(ident); v != nil {
 		return fmt.Errorf("datatype '%s' is already declared", ident)
 	}
-	s.datatypes[ident] = decl
+	s.datatypes[ident] = rec
 	return nil
 }
 
@@ -143,26 +130,21 @@ func (ss *ScopeStack) ExitScope() {
 	ss.pop()
 }
 
-func (ss *ScopeStack) GetVar(ident string) *IRVariable {
+func (ss *ScopeStack) GetVar(ident string) string {
 	for i := len(ss.Scopes) - 1; i >= 0; i-- {
-		if v := ss.Scopes[i].symbolTable.getVar(ident); v != nil {
+		if v := ss.Scopes[i].symbolTable.getVar(ident); v != "" {
 			return v
 		}
 	}
-	return nil
+	return ""
 }
 
-// add variable to the symbol table of the scope that is at the top of ss.Scopes
-func (ss *ScopeStack) AddVar(ident string, decl *IRVariable) error {
-	err := ss.Scopes[len(ss.Scopes)-1].symbolTable.addVar(ident, decl)
+func (ss *ScopeStack) AddVar(ident, type_ string) error {
+	err := ss.Scopes[len(ss.Scopes)-1].symbolTable.addVar(ident, type_)
 	if err != nil {
 		ss.AddFailedVar(ident)
 	}
 	return err
-}
-
-func (ss *ScopeStack) UpdateVar(ident string, newVal IRExpression) error {
-	return ss.Scopes[len(ss.Scopes)-1].symbolTable.updateVar(ident, newVal)
 }
 
 func (ss *ScopeStack) IsFailedVar(ident string) bool {
@@ -178,12 +160,14 @@ func (ss *ScopeStack) GetFunc(ident string) *IRFunction {
 	return ss.Scopes[0].symbolTable.getFunc(ident)
 }
 
-func (ss *ScopeStack) AddFunc(decl *IRFunction) error {
-	return ss.Scopes[0].symbolTable.addFunc(decl)
+func (ss *ScopeStack) AddFunc(ident string, rec *IRFunction) error {
+	// look at only the global scope, because function can only be declared at the top level.
+	return ss.Scopes[0].symbolTable.addFunc(ident, rec)
 }
 
-func (ss *ScopeStack) AddDatatype(decl *IRDatatype) error {
-	return ss.Scopes[0].symbolTable.addDatatype(decl)
+func (ss *ScopeStack) AddDatatype(ident string, rec *IRDatatype) error {
+	// look at only the global scope, because function can only be declared at the top level.
+	return ss.Scopes[0].symbolTable.addDatatype(ident, rec)
 }
 
 func (ss *ScopeStack) GetDatatype(ident string) *IRDatatype {

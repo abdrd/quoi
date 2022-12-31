@@ -96,7 +96,7 @@ func (a *Analyzer) registerFuncSignature(s *ast.FunctionDeclarationStatement) er
 	for _, v := range s.ReturnTypes {
 		ir.Returns = append(ir.Returns, fnReturnTypeRepr(v))
 	}
-	return a.env.AddFunc(ir)
+	return a.env.AddFunc(ir.Name, ir)
 }
 
 func (a *Analyzer) registerDatatype(s *ast.DatatypeDeclaration) error {
@@ -105,7 +105,7 @@ func (a *Analyzer) registerDatatype(s *ast.DatatypeDeclaration) error {
 		field := IRDatatypeField{Type: v.Tok.Literal, Name: v.Ident.String()}
 		ir.Fields = append(ir.Fields, field)
 	}
-	return a.env.AddDatatype(ir)
+	return a.env.AddDatatype(ir.Name, ir)
 }
 
 func (a *Analyzer) Analyze() *IRProgram {
@@ -142,28 +142,26 @@ func (a *Analyzer) typecheck() *IRProgram {
 	return program
 }
 
-type typeLit string
-
 const (
-	TypeString typeLit = "string"
-	TypeInt    typeLit = "int"
-	TypeBool   typeLit = "bool"
-	TypeVoid   typeLit = "void"
+	TypeString = "string"
+	TypeInt    = "int"
+	TypeBool   = "bool"
+	TypeVoid   = "void"
 	// empty lists are of this type (list-any)
-	TypeAny typeLit = "any"
+	TypeAny = "any"
 )
 
 var (
-	TypeList_ = func(t typeLit) typeLit {
-		return typeLit("list-" + string(t))
+	TypeList_ = func(t string) string {
+		return "list-" + t
 	}
-	TypeDatatype_ = func(dt string) typeLit {
-		return typeLit(dt)
+	TypeDatatype_ = func(dt string) string {
+		return dt
 	}
 )
 
 type Type struct {
-	typ       typeLit
+	typ       string
 	line, col uint
 	next      *Type
 }
@@ -174,65 +172,119 @@ func (t *Type) setNext(ty *Type) {
 	}
 }
 
-func NewType(typ typeLit, line, col uint) *Type {
+func NewType(typ string, line, col uint) *Type {
 	return &Type{typ: typ, line: line, col: col}
 }
 
-func NewListType(typ typeLit, line, col uint) *Type {
+func NewListType(typ string, line, col uint) *Type {
 	return NewType(TypeList_(typ), line, col)
 }
 
-func (a *Analyzer) match(expr ast.Expr, t *Type) bool {
-	// Ignoring the possibility of *t.Next != nil (for now)
+func NewTypeFromVarType(typ ast.VarType, line, col uint) *Type {
+	if typ.IsList {
+		return NewListType(typ.TypeOfList.Literal, line, col)
+	}
+	return NewType(typ.Tok.Literal, line, col)
+}
+
+func (a *Analyzer) matchTypes(lhs, rhs *Type) error {
+	for lhs.next != nil && rhs.next != nil {
+		if lhs.typ != rhs.typ {
+			return newErr(lhs.line, lhs.col, "expected '%s', got '%s'", lhs.typ, rhs.typ)
+		}
+		lhs = lhs.next
+		rhs = rhs.next
+	}
+	lhsExhausted, rhsExhausted := lhs.next == nil, rhs.next == nil
+	if lhsExhausted && !(rhsExhausted) {
+		return newErr(lhs.line, lhs.col, "unused value of type '%s'", rhs.typ)
+	} else if !(lhsExhausted) && rhsExhausted {
+		return newErr(lhs.line, lhs.col, "variable assigned to nothing")
+	} else if lhs.typ != rhs.typ {
+		return newErr(lhs.line, lhs.col, "mismatched types '%s', and '%s'", lhs.typ, rhs.typ)
+	}
+	return nil
+}
+
+func (a *Analyzer) match(expr ast.Expr, t *Type) error {
 	switch expr := expr.(type) {
 	case *ast.StringLiteral:
-		return t.typ == TypeString
+		if t.typ != TypeString {
+			return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s', got 'string'", t.typ)
+		}
+		return nil
 	case *ast.IntLiteral:
-		return t.typ == TypeInt
+		if t.typ != TypeInt {
+			return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s', got 'int'", t.typ)
+		}
+		return nil
 	case *ast.BoolLiteral:
-		return t.typ == TypeBool
+		if t.typ != TypeBool {
+			return newErr(expr.Typ.Line, expr.Typ.Col, "expected '%s', got 'bool'", t.typ)
+		}
+		return nil
 	case *ast.ListLiteral:
 		// learn the type of list literal
 		listType, err := a.infer(expr)
 		if err != nil {
-			a.pushErr(err)
-			return false
+			return err
 		}
 		if listType.typ == TypeAny {
-			return true
+			return nil
 		}
-		return listType.typ == t.typ
+		if t.typ != listType.typ {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s' in list literal", t.typ, listType.typ)
+		}
+		return nil
 	case *ast.DatatypeLiteral:
 		datatypeType, err := a.infer(expr)
 		if err != nil {
-			a.pushErr(err)
-			return false
+			return err
 		}
-		return datatypeType.typ == t.typ
+		if t.typ != datatypeType.typ {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s' in datatype literal", t.typ, datatypeType.typ)
+		}
+		return nil
 	case *ast.FunctionCall:
 		fnType, err := a.infer(expr)
 		if err != nil {
-			a.pushErr(err)
-			return false
+			return err
 		}
-		return fnType.typ == t.typ
+		for t.next != nil && fnType.next != nil {
+			if t.typ != fnType.typ {
+				return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s'", t.typ, fnType.typ)
+			}
+			t = t.next
+			fnType = fnType.next
+		}
+		tExhausted, fnTypeExhausted := t.next == nil, fnType.next == nil
+		if tExhausted && !(fnTypeExhausted) {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "unused value from function call '%s'", expr.Ident)
+		} else if !(tExhausted) && fnTypeExhausted {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "variable assigned to nothing")
+		}
+		return nil
 	case *ast.PrefixExpr:
 		prefType, err := a.infer(expr)
 		if err != nil {
-			a.pushErr(err)
-			return false
+			return err
 		}
-		return prefType.typ == t.typ
+		if t.typ != prefType.typ {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s'", t.typ, prefType.typ)
+		}
+		return nil
 	case *ast.Identifier:
 		if a.env.IsFailedVar(expr.Tok.Literal) {
-			return true
+			return nil
 		}
-		decl := a.env.GetVar(expr.String())
-		if decl == nil {
-			a.errorf(expr.Tok.Line, expr.Tok.Col, "reference to non-existent variable '%s'", expr.String())
-			return false
+		typ := a.env.GetVar(expr.String())
+		if typ == "" {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "reference to non-existent variable '%s'", expr.String())
 		}
-		return typeLit(decl.Type) == t.typ
+		if t.typ != typ {
+			return newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s'", t.typ, typ)
+		}
+		return nil
 	}
 	panic(fmt.Sprintf("--UNREACHABLE--\n*Analyzer.match: unknown expr '%s'\n", expr.String()))
 }
@@ -256,41 +308,63 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 			return nil, err
 		}
 		for _, el := range expr.Elems {
-			if !(a.match(el, firstElemType)) {
-				elType, err := a.infer(el)
-				if err != nil {
-					return nil, err
-				}
-				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "expected '%s', got '%s' in list literal", firstElemType.typ, elType.typ)
+			if err := a.match(el, firstElemType); err != nil {
+				return nil, err
 			}
 		}
 		return NewType(TypeList_(firstElemType.typ), firstElemType.line, firstElemType.col), nil
 	case *ast.Identifier:
-		decl := a.env.GetVar(expr.String())
-		if decl == nil {
+		typ := a.env.GetVar(expr.String())
+		if typ == "" {
 			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "reference to non-existent variable '%s'", expr.Tok.Literal)
 		}
-		return NewType(typeLit(decl.Type), expr.Tok.Line, expr.Tok.Col), nil
+		return NewType(typ, expr.Tok.Line, expr.Tok.Col), nil
 	case *ast.DatatypeLiteral:
 		datatype := a.env.GetDatatype(expr.Tok.Literal)
 		if datatype == nil {
-			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "initialization of non-existent datatype '%s'", datatype.Name)
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "initialization of non-existent datatype '%s'", expr.Tok.Literal)
 		}
-		typ, err := a.infer(expr)
-		if err != nil {
-			return nil, err
+		if len(expr.Fields) > datatype.FieldCount {
+			unknownField := expr.Fields[datatype.FieldCount+1]
+			dtName := datatype.Name
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "unknown field '%s' in datatype literal '%s'", unknownField, dtName)
 		}
-		return typ, nil
+		exprFieldsNameTypeMap := map[string]*Type{}
+		datatypeFieldsNameTypeMap := map[string]*Type{}
+		for _, v := range expr.Fields {
+			typ, err := a.infer(v.Value)
+			if err != nil {
+				return nil, err
+			}
+			exprFieldsNameTypeMap[v.Name.String()] = typ
+		}
+		for _, v := range datatype.Fields {
+			datatypeFieldsNameTypeMap[v.Name] = NewType(v.Type, expr.Tok.Line, expr.Tok.Col)
+		}
+		for k, v := range exprFieldsNameTypeMap {
+			t, ok := datatypeFieldsNameTypeMap[k]
+			if !(ok) {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "unknown field '%s' in datatype literal '%s'", k, datatype.Name)
+			}
+			if err := a.matchTypes(t, v); err != nil {
+				errMsg := fmt.Sprintf("type mismatch for field '%s' in datatype literal '%s' (want=%s got=%s)", k, datatype.Name, t.typ, v.typ)
+				if v.next != nil {
+					errMsg = fmt.Sprintf("type mismatch for field '%s' in datatype literal '%s'; more value on rhs", k, datatype.Name)
+				}
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, errMsg)
+			}
+		}
+		return NewType(expr.Tok.Literal, expr.Tok.Line, expr.Tok.Col), nil
 	case *ast.FunctionCall:
 		fn := a.env.GetFunc(expr.Tok.Literal)
 		if fn == nil {
-			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "invoking of non-existent function '%s'", fn.Name)
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "invoking of non-existent function '%s'", expr.Ident)
 		}
 		if fn.ReturnsCount == 0 {
 			return NewType(TypeVoid, expr.Tok.Line, expr.Tok.Col), nil
 		}
 		if fn.ReturnsCount == 1 {
-			return NewType(typeLit(fn.Returns[0]), expr.Tok.Line, expr.Tok.Col), nil
+			return NewType(fn.Returns[0], expr.Tok.Line, expr.Tok.Col), nil
 		}
 		// head of the linked list
 		// other return types will follow this.
@@ -298,19 +372,23 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 		// for example:
 		// [int] --next--> [string] --next--> [User] --next--> *nil*
 		// a very simple singly-linked list
-		t := NewType(typeLit(fn.Returns[0]), expr.Tok.Line, expr.Tok.Col)
+		t := NewType(fn.Returns[0], expr.Tok.Line, expr.Tok.Col)
 		// copy t; because when we exit the loop, t will no longer be the first type; instead
 		// it will be the last type.
 		// And we want to return the first type, so that we can, in the future, follow the type chain.
 		tOriginal := t
-		for _, r := range fn.Returns {
-			t2 := NewType(typeLit(r), expr.Tok.Line, expr.Tok.Col)
+		for i, r := range fn.Returns {
+			if i == 0 {
+				// skip the first one to prevent duplicate type at the beginning
+				continue
+			}
+			t2 := NewType(r, expr.Tok.Line, expr.Tok.Col)
 			t.setNext(t2)
 			t = t2
 		}
 		return tOriginal, nil
 	case *ast.PrefixExpr:
-		var expectConsecutive = func(what typeLit) error {
+		var expectConsecutive = func(what string) error {
 			for _, arg := range expr.Args {
 				typ, err := a.infer(arg)
 				if err != nil {
@@ -390,18 +468,22 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 			return typ, nil
 		// list/string indexing
 		case token.SINGLE_QUOTE:
-			if len(expr.Args) != 1 {
-				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "operator \"'\" expects exactly one argument")
+			if len(expr.Args) != 2 {
+				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "operator \"'\" expects exactly two arguments")
 			}
 			typ, err := a.infer(expr.Args[0])
 			if err != nil {
 				return nil, err
 			}
-			isStrIndex, isListIndex := typ.typ == TypeString, strings.Contains(string(typ.typ), "list-")
-			if !(isStrIndex && isListIndex) {
+			isStrIndex, isListIndex := typ.typ == TypeString, strings.Contains(typ.typ, "list-")
+			if !(isStrIndex) && !(isListIndex) {
 				return nil, newErr(expr.Tok.Line, expr.Tok.Col, "invalid type of expression for \"'\"")
 			}
-			return typ, nil
+			if isListIndex {
+				typOfList := strings.Split(typ.typ, "list-")[1]
+				return NewType(typOfList, expr.Tok.Line, expr.Tok.Col), nil
+			}
+			return NewType(TypeString, expr.Tok.Line, expr.Tok.Col), nil
 		}
 	}
 	panic(fmt.Sprintf("--UNREACHABLE--\n*Analyzer.infer: unknown expr '%s'\n", expr.String()))
@@ -427,6 +509,8 @@ func (a *Analyzer) typecheckStatement(s ast.Statement, returnWanted *returnWante
 		return a.typecheckLoop(s, returnWanted)
 	case *ast.FunctionDeclarationStatement:
 		return a.typecheckFunDecl(s)
+	case *ast.FunctionCall:
+		return a.typecheckFunCall(s)
 	}
 	return nil
 }
@@ -442,8 +526,8 @@ func (a *Analyzer) toIrExpr(expr ast.Expr, typeOfList ...string) IRExpression {
 	case *ast.BoolLiteral:
 		return &IRBoolean{Value: expr.String()}
 	case *ast.Identifier:
-		v := a.env.GetVar(expr.Tok.Literal)
-		return &IRVariableReference{Name: v.Name, Type: v.Type, Value: v.Value}
+		typ := a.env.GetVar(expr.Tok.Literal)
+		return &IRVariableReference{Name: expr.String(), Type: typ}
 	case *ast.PrefixExpr:
 		ir := &IRPrefExpr{Operator: expr.Tok.Literal}
 		for _, v := range expr.Args {
@@ -459,6 +543,21 @@ func (a *Analyzer) toIrExpr(expr ast.Expr, typeOfList ...string) IRExpression {
 			ir.Value = append(ir.Value, a.toIrExpr(v))
 		}
 		return ir
+	case *ast.FunctionCall:
+		fnName := expr.Ident.String()
+		// this can't be nil
+		fn := a.env.GetFunc(fnName)
+		ir := &IRFunctionCall{Name: fnName, TakesCount: fn.TakesCount, ReturnsCount: fn.ReturnsCount, Returns: fn.Returns}
+		for _, v := range expr.Args {
+			ir.Takes = append(ir.Takes, a.toIrExpr(v))
+		}
+		return ir
+	case *ast.DatatypeLiteral:
+		ir := &IRDatatypeLiteral{Name: expr.Tok.Literal, FieldsAndValues: make(map[string]IRExpression)}
+		for _, v := range expr.Fields {
+			ir.FieldsAndValues[v.Name.String()] = a.toIrExpr(v.Value)
+		}
+		return ir
 	}
 	panic("toIrExpr : unhandled expr " + expr.String())
 }
@@ -469,20 +568,14 @@ func (a *Analyzer) typecheckVarDecl(s *ast.VariableDeclarationStatement) *IRVari
 			return nil
 		}
 	}
-	t, err := a.infer(s.Value)
-	if err != nil {
+	varType := NewType(s.Tok.Literal, s.Tok.Line, s.Tok.Col)
+	if err := a.match(s.Value, varType); err != nil {
 		a.pushErr(err)
-		a.env.AddFailedVar(s.Tok.Literal)
-		return nil
-	}
-	varType := NewType(typeLit(s.Tok.Literal), s.Tok.Line, s.Tok.Col)
-	if ok := a.match(s.Value, varType); !(ok) {
-		a.errorf(s.Tok.Line, s.Tok.Col, "expected '%s', got '%s'", varType.typ, t.typ)
 		a.env.AddFailedVar(s.Ident.String())
 		return nil
 	}
 	ir := &IRVariable{Name: s.Ident.String(), Type: s.Tok.Literal, Value: a.toIrExpr(s.Value)}
-	if err := a.env.AddVar(ir.Name, ir); err != nil {
+	if err := a.env.AddVar(ir.Name, ir.Type); err != nil {
 		a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
 		return nil
 	}
@@ -495,19 +588,14 @@ func (a *Analyzer) typecheckListDecl(s *ast.ListVariableDeclarationStatement) *I
 			return nil
 		}
 	}
-	listExprType, err := a.infer(s.List)
-	if err != nil {
+	listType := NewType(TypeList_(s.Typ.Literal), s.Tok.Line, s.Tok.Col)
+	if err := a.match(s.List, listType); err != nil {
 		a.pushErr(err)
-		return nil
-	}
-	listType := NewType(TypeList_(typeLit(s.Typ.Literal)), s.Tok.Line, s.Tok.Col)
-	if ok := a.match(s.List, listType); !(ok) {
-		a.errorf(s.Tok.Line, s.Tok.Col, "expected '%s', got '%s'", listType.typ, listExprType.typ)
 		a.env.AddFailedVar(s.Name.String())
 		return nil
 	}
 	ir := &IRVariable{Name: s.Name.String(), Type: TypeList(s.Typ.Literal), Value: a.toIrExpr(s.List, s.Typ.Literal)}
-	if err := a.env.AddVar(ir.Name, ir); err != nil {
+	if err := a.env.AddVar(ir.Name, ir.Type); err != nil {
 		a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
 		return nil
 	}
@@ -538,13 +626,8 @@ func (a *Analyzer) returnCountAndTypeMustMatch(v ast.Statement, returnWanted *re
 }
 
 func (a *Analyzer) typecheckIfStmt(s *ast.IfStatement, returnWanted *returnWanted) *IRIf {
-	condType, err := a.infer(s.Cond)
-	if err != nil {
+	if err := a.match(s.Cond, NewType(TypeBool, s.Tok.Line, s.Tok.Col)); err != nil {
 		a.pushErr(err)
-		return nil
-	}
-	if ok := a.match(s.Cond, NewType(TypeBool, s.Tok.Line, s.Tok.Col)); !ok {
-		a.errorf(s.Tok.Line, s.Tok.Col, "expected 'bool', got '%s'", condType.typ)
 		return nil
 	}
 	ir := &IRIf{Cond: a.toIrExpr(s.Cond)}
@@ -596,13 +679,8 @@ func (a *Analyzer) typecheckElseStmt(s *ast.ElseStatement, returnWanted *returnW
 // this is going to be mostly the same as typecheckIfStmt, but I don't want to create workarounds to prevent
 // entering a new scope when using typecheckIfStmt to typecheck an elseif statement.
 func (a *Analyzer) typecheckElseIfStmt(s *ast.IfStatement, returnWanted *returnWanted) *IRElseIf {
-	condType, err := a.infer(s.Cond)
-	if err != nil {
+	if err := a.match(s.Cond, NewType(TypeBool, s.Tok.Line, s.Tok.Col)); err != nil {
 		a.pushErr(err)
-		return nil
-	}
-	if ok := a.match(s.Cond, NewType(TypeBool, s.Tok.Line, s.Tok.Col)); !ok {
-		a.errorf(s.Tok.Line, s.Tok.Col, "expected 'bool', got '%s'", condType.typ)
 		return nil
 	}
 	ir := &IRElseIf{Cond: a.toIrExpr(s.Cond)}
@@ -656,82 +734,94 @@ func (a *Analyzer) typecheckDatatypeDecl(s *ast.DatatypeDeclaration) *IRDatatype
 
 func (a *Analyzer) typecheckSubseqVarDecl(s *ast.SubsequentVariableDeclarationStatement) *IRSubseq {
 	ir := &IRSubseq{}
-	lenTypes, lenNames, lenValues := len(s.Types), len(s.Names), len(s.Values)
-	// lenTypes, and lenNames are guaranteed -by the parser- to be equal.
-	if lenTypes != lenValues || lenNames != lenValues {
-		a.errorf(s.Tok.Line, s.Tok.Col, "missing value")
+	names, types := s.Names, s.Types
+	var buildTypeChain = func(varTypes []ast.VarType, line, col uint) *Type {
+		t := NewTypeFromVarType(varTypes[0], line, col)
+		if len(varTypes) == 1 {
+			return t
+		}
+		tCopy := t
+		for i := 1; i < len(varTypes); i++ {
+			newT := NewTypeFromVarType(varTypes[i], line, col)
+			tCopy.setNext(newT)
+			tCopy = newT
+		}
+		return t
+	}
+	var buildRhsTypeChain = func() (*Type, error) {
+		t, err := a.infer(s.Values[0])
+		if err != nil {
+			return nil, err
+		}
+		tCopy := t
+		for i := 1; i < len(s.Values); i++ {
+			newT, err := a.infer(s.Values[i])
+			if err != nil {
+				return nil, err
+			}
+			tCopy.setNext(newT)
+			tCopy = newT
+		}
+		return t, nil
+	}
+	lhs := buildTypeChain(types, s.Tok.Line, s.Tok.Col)
+	rhs, err := buildRhsTypeChain()
+	if err != nil {
+		a.pushErr(err)
 		return nil
 	}
 	var setAllVarsFailed = func() {
-		for _, n := range s.Names {
-			a.env.AddFailedVar(n.String())
+		for _, v := range names {
+			a.env.AddFailedVar(v.String())
 		}
 	}
-	for _, v := range s.Names {
-		ir.Names = append(ir.Names, v.String())
+	if err := a.matchTypes(lhs, rhs); err != nil {
+		a.pushErr(err)
+		setAllVarsFailed()
+		return nil
 	}
-	for _, v := range s.Types {
-		if v.IsList {
-			ir.Types = append(ir.Types, TypeList(v.TypeOfList.Literal))
-			continue
+	for _, n := range names {
+		ir.Names = append(ir.Names, n.String())
+	}
+	for _, n := range types {
+		var t string
+		if n.IsList {
+			t = TypeList_(n.TypeOfList.Literal)
+		} else {
+			t = n.Tok.Literal
 		}
-		ir.Types = append(ir.Types, v.Tok.Literal)
+		ir.Types = append(ir.Types, t)
 	}
-	for i := 0; i < len(s.Values); i++ {
-		curVal := s.Values[i]
-		if d, ok := curVal.(*ast.Identifier); ok {
+	for _, v := range s.Values {
+		if d, ok := v.(*ast.Identifier); ok {
 			if a.env.IsFailedVar(d.String()) {
 				setAllVarsFailed()
 				return nil
 			}
 		}
-		typ, name := NewType(typeLit(ir.Types[i]), s.Tok.Line, s.Tok.Col), ir.Names[i]
-		gotType, err := a.infer(curVal)
-		if err != nil {
-			a.pushErr(err)
-			return nil
+		ir.Values = append(ir.Values, a.toIrExpr(v))
+	}
+	// add variables
+	for i := 0; ; i++ {
+		name := names[i].String()
+		a.env.AddVar(name, rhs.typ)
+		if rhs.next == nil {
+			break
 		}
-		if ok := a.match(curVal, typ); !(ok) {
-			a.errorf(s.Tok.Line, s.Tok.Col, "expected '%s', got '%s'", typ.typ, gotType.typ)
-			setAllVarsFailed()
-			return nil
-		}
-		valToConv := s.Values[i]
-		isList := s.Types[i].IsList
-		typOfList := s.Types[i].TypeOfList
-		var irExpr IRExpression
-		if isList {
-			irExpr = a.toIrExpr(valToConv, typOfList.Literal)
-		} else {
-			irExpr = a.toIrExpr(valToConv)
-		}
-		ir.Values = append(ir.Values, irExpr)
-		if err := a.env.AddVar(name, &IRVariable{Name: name, Type: string(typ.typ), Value: irExpr}); err != nil {
-			a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
-			return nil
-		}
+		rhs = rhs.next
 	}
 	return ir
 }
 
 func (a *Analyzer) typecheckReassignment(s *ast.ReassignmentStatement) *IRReassigment {
 	ir := &IRReassigment{Name: s.Ident.String()}
-	typOfOldVal := NewType(typeLit(a.env.GetVar(ir.Name).Type), s.Tok.Line, s.Tok.Col)
+	typOfOldVal := NewType(a.env.GetVar(ir.Name), s.Tok.Line, s.Tok.Col)
 	newVal := s.NewValue
-	newValType, err := a.infer(newVal)
-	if err != nil {
+	if err := a.match(newVal, typOfOldVal); err != nil {
 		a.pushErr(err)
 		return nil
 	}
-	if ok := a.match(newVal, typOfOldVal); !(ok) {
-		a.errorf(s.Tok.Line, s.Tok.Col, "invalid type of expression '%s' for variable '%s'", newValType.typ, ir.Name)
-		return nil
-	}
 	ir.NewValue = a.toIrExpr(newVal)
-	if err := a.env.UpdateVar(ir.Name, ir.NewValue); err != nil {
-		a.errorf(s.Tok.Line, s.Tok.Col, err.Error())
-		return nil
-	}
 	return ir
 }
 
@@ -772,13 +862,8 @@ func (a *Analyzer) typecheckLoop(s *ast.LoopStatement, returnWanted *returnWante
 	ir := &IRLoop{}
 	boolType := NewType(TypeBool, s.Tok.Line, s.Tok.Col)
 	cond := s.Cond
-	condType, err := a.infer(cond)
-	if err != nil {
+	if err := a.match(cond, boolType); err != nil {
 		a.pushErr(err)
-		return nil
-	}
-	if ok := a.match(cond, boolType); !(ok) {
-		a.errorf(s.Tok.Line, s.Tok.Col, "expected 'bool', got '%s'", condType.typ)
 		return nil
 	}
 	ir.Cond = a.toIrExpr(s.Cond)
@@ -815,7 +900,7 @@ func (a *Analyzer) typecheckFunDecl(s *ast.FunctionDeclarationStatement) *IRFunc
 		} else {
 			param.Type = v.Tok.Literal
 		}
-		if err := a.env.AddVar(param.Name, param); err != nil {
+		if err := a.env.AddVar(param.Name, param.Type); err != nil {
 			a.errorf(v.Tok.Line, v.Tok.Col, "duplicate parameter '%s' name in function '%s'", param.Name, ir.Name)
 			return nil
 		}
@@ -844,14 +929,9 @@ func (a *Analyzer) typecheckFunDecl(s *ast.FunctionDeclarationStatement) *IRFunc
 			}
 			// equal
 			for i, v := range r.ReturnValues {
-				retType := NewType(typeLit(ir.Returns[i]), s.Tok.Line, s.Tok.Col)
-				vType, err := a.infer(v)
-				if err != nil {
+				retType := NewType(ir.Returns[i], s.Tok.Line, s.Tok.Col)
+				if err := a.match(v, retType); err != nil {
 					a.pushErr(err)
-					return nil
-				}
-				if ok := a.match(v, retType); !(ok) {
-					a.errorf(s.Tok.Line, s.Tok.Col, "expected '%s', got '%s'", retType.typ, vType.typ)
 				}
 			}
 			a.seenReturn = true
@@ -888,15 +968,32 @@ func (r *returnWanted) checkTypeError(a *Analyzer, line, col uint, vals []ast.Ex
 	// counts are equal. guaranteed.
 	for i := 0; i < len(vals); i++ {
 		val := vals[i]
-		valType, err := a.infer(val)
-		if err != nil {
-			return err
-		}
 		typ := r.types[i]
-		typType := NewType(typeLit(typ), line, col)
-		if ok := a.match(val, typType); !(ok) {
-			return newErr(line, col, "expected '%s', got '%s'", typType.typ, valType.typ)
+		typType := NewType(typ, line, col)
+		if err := a.match(val, typType); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (a *Analyzer) typecheckFunCall(s *ast.FunctionCall) *IRFunctionCall {
+	fnName := s.Ident.String()
+	ir := &IRFunctionCall{Name: fnName}
+	fr := a.env.GetFunc(fnName)
+	if fr == nil {
+		a.errorf(s.Tok.Line, s.Tok.Col, "invoking of non-existent function '%s'", fnName)
+		return nil
+	}
+	if fr.ReturnsCount > 0 {
+		a.errorf(s.Tok.Line, s.Tok.Col, "unused value from function call '%s'", fnName)
+		return nil
+	}
+	ir.Returns = fr.Returns
+	for _, v := range s.Args {
+		ir.Takes = append(ir.Takes, a.toIrExpr(v))
+	}
+	ir.ReturnsCount = len(ir.Returns)
+	ir.TakesCount = len(ir.Takes)
+	return ir
 }
