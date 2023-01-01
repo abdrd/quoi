@@ -53,13 +53,13 @@ and or not
   - List literals start with an opening square bracket, and end with a closing one.
   - List types are in the form of ```listof <type>```.
   - There is a list indexing operator. (```(' list index)```)
-    - This operator returns the value stored at that index. To place a new value at that index use ```List::replace(list, index, new_value)```
+    - This operator returns the value stored at that index. To place a new value at that index use ```List::replace_<typeof_list>(list, index, new_value)```
 
 ```lisp
 listof string names = ["Jennifer", "Hasan"].
 listof int nx = [1, 2, 56, 9910].
 
-Stdout::println((' nx 2)) ; prints 56
+Stdout::println(String::from_int((' nx 2))) ; prints 56
 ```
 
 <a id="datatypes"></a>
@@ -126,8 +126,9 @@ Equivalent of this classical loop above:
 ```rust
 int i = 0.
 loop (lt i 10) {
-  string msg = String::concat("#", String::from_int(i), "\n").
+  string msg = String::concat("#", String::from_int(i)).
   Stdout::println(msg).
+  Stdout::print("\n").
   i = (+ i 1).
 }
 ```
