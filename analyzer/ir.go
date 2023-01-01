@@ -196,10 +196,14 @@ func (s *IRSubseq) String() string {
 	}
 	var res string = "subseq!("
 	for i := 0; i < len(s.Names); i++ {
-		res += fmt.Sprintf("name:%s type:%s value:%s", s.Names[i], s.Types[i], s.Values[i])
+		res += fmt.Sprintf("name:%s type:%s", s.Names[i], s.Types[i])
 		if i != len(s.Names)-1 {
 			res += " "
 		}
+	}
+	res += " value:"
+	for _, v := range s.Values {
+		res += v.String()
 	}
 	res += ")"
 	return res
@@ -271,8 +275,9 @@ func (r *IRReturn) String() string {
 	}
 	res := fmt.Sprintf("return!(types#%d:[", r.ReturnCount)
 	for i, v := range r.ReturnTypes {
+		res += v
 		if i != r.ReturnCount-1 {
-			res += v + " "
+			res += " "
 		}
 	}
 	res += "] returns:["

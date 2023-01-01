@@ -59,7 +59,7 @@ and or not
 listof string names = ["Jennifer", "Hasan"].
 listof int nx = [1, 2, 56, 9910].
 
-Stdout::println((' nx 2)) ; prints 56
+Stdout::println(String::from_int((' nx 2))) ; prints 56
 ```
 
 <a id="datatypes"></a>

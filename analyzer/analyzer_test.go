@@ -578,45 +578,57 @@ func TestGeneral2(t *testing.T) {
 
 func TestFC2(t *testing.T) {
 	input := `
-		;Stdout::println("hello", 2).
-		;Stdout::idontknow().
-		;String::from_int(5).
-		;String::fromm_int(5).
-
-		;Stdout::println( String::from_int( 5 ) ).
-
-		fun a (string s) -> string { return s. }
-
-		;string s = a().
-
-		;Stdout::println( a("hello world") ).
-
+		;Stdout::println(1).
 		;Stdout::println().
-
-		fun returns_two_strings() -> string, string { return "He", "He". }
-
-		;string xx = a( returns_two_strings() ).
-
-		fun b(string s) -> {  }
-
-		;b( returns_two_strings() ).
-		;b(1, 2).
-		;b().
-		;b(true).
-		;b(b("hey")).
+		;Stdout::println( String::concat( "#", String::from_int(5) ) ).
 		
-		;b(2).
+		;string x = Math::pow(1, 2).
+		
+		datatype City { 
+			string name
+		}
 
-		fun c(string a) -> int { return 5. } 
+		;int x = Int::from_string( City { name="City 1" } ).
+		`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
 
-		int xxx = c(2).
+	fmt.Println(program)
+}
 
-		;int _2pow2 = Math::pow(2, 2, 3).
-		;int _2pow2 = Math::pow(2).
-		;int _2pow2 = Math::powW("hey", 2).
-		fun _2ints() -> int, int { return 2, 2. }
-		;int _2pow = Math::pow("hey", 2).
-		int _2pow = Math::pow(_2ints()).
+func TestFC3(t *testing.T) {
+	input := `
+		fun two_ints() -> int, int { return 5, 6. }
+
+		;two_ints().
+		;int n2, int n1 = two_ints().
+		;int n3, string s1 = two_ints().
+		;int n3, int n4, int n5 = two_ints().
+		;int n6 = two_ints().
+
+		fun takes_two_strs(string s1, string s2) -> {}
+		fun returns_two_strs() -> string, string { return "Hello ", "world". }
+
+		;takes_two_strs().
+		takes_two_strs( returns_two_strs() ).
+
+		fun takes_three_strs(string s1, string s2, string s3) -> {}
+
+		takes_three_strs(returns_two_strs()).
+
+		fun takes_nothing() -> {}
+
+		takes_nothing( 1 ).
+
+		fun takes_one_string(string s1) -> {}
+
+		;takes_one_string(1).
 	`
 	a := _new(input)
 	program := a.Analyze()
@@ -658,5 +670,40 @@ func TestGetSet1(t *testing.T) {
 		return
 	}
 
+	fmt.Println(program)
+}
+
+func TestGeneral3(t *testing.T) {
+	input := `
+		fun h() -> int {
+			return 5.
+		}
+		fun factorial(int n) -> int {
+			int product = 1.
+			int j = 1.
+			loop (lte j n) {
+			j = (+ j 1).
+			product = (* product j).
+			}
+			return product.
+		}
+
+		int i = 0.
+		loop (lt i 10) {
+			string msg = String::concat("#", String::from_int(i)).
+			Stdout::println(msg).
+			Stdout::print("\n").
+			i = (+ i 1).
+		}
+		
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
 	fmt.Println(program)
 }

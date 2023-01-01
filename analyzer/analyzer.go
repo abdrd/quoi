@@ -297,7 +297,7 @@ func (a *Analyzer) match(expr ast.Expr, t *Type) error {
 				return err
 			}
 			if argType.typ != t.typ {
-				return newErr(expr.Function.Tok.Line, expr.Namespace.Tok.Col, "expected '%s', got '%s' as argument in '%s::%s'", t.typ, argType.typ, ns, fnName)
+				return newErr(expr.Function.Tok.Line, expr.Namespace.Tok.Col, "expected '%s', got '%s'", t.typ, argType.typ)
 			}
 		}
 		for t.next != nil && typ.next != nil {
@@ -670,6 +670,9 @@ func (a *Analyzer) typecheckStatement(s ast.Statement, returnWanted *returnWante
 		return a.typecheckFunCall(s)
 	case *ast.FunctionCallFromNamespace:
 		return a.typecheckFunCallFromNamespace(s)
+	case *ast.ReturnStatement:
+		// I realized I forgot to produce IR for return statements.
+		return a.produceReturnIR(s)
 	}
 	return nil
 }
@@ -1151,43 +1154,76 @@ func (r *returnWanted) checkTypeError(a *Analyzer, line, col uint, vals []ast.Ex
 
 func (a *Analyzer) typecheckFunCall(s *ast.FunctionCall) *IRFunctionCall {
 	fnName := s.Ident.String()
-	ir := &IRFunctionCall{Name: fnName}
-	fr := a.env.GetFunc(fnName)
-	if fr == nil {
+	fn := a.env.GetFunc(fnName)
+	if fn == nil {
 		a.errorf(s.Tok.Line, s.Tok.Col, "invoking of non-existent function '%s'", fnName)
 		return nil
 	}
-	if fr.ReturnsCount > 0 {
+	ir := &IRFunctionCall{Name: fnName}
+	if fn.ReturnsCount > 0 {
 		a.errorf(s.Tok.Line, s.Tok.Col, "unused value from function call '%s'", fnName)
 		return nil
 	}
-	lenArgs := len(s.Args)
-	if fr.TakesCount > lenArgs {
-		a.errorf(s.Tok.Line, s.Tok.Col, "missing arguments to function call '%s'", fnName)
-		return nil
-	} else if fr.TakesCount < lenArgs {
-		a.errorf(s.Tok.Line, s.Tok.Col, "excessive number of arguments to function call '%s'", fnName)
-		return nil
-	}
-	for i := 0; i < len(s.Args); i++ {
-		t, err := a.infer(s.Args[i])
+	switch fn.TakesCount {
+	case 0:
+		if len(s.Args) > 0 {
+			a.errorf(s.Tok.Line, s.Tok.Col, "function '%s' takes no arguments", fnName)
+			return nil
+		}
+	default:
+		lenArgs := len(s.Args)
+		if lenArgs == 0 {
+			a.errorf(s.Tok.Line, s.Tok.Col, "insufficient number of arguments to function '%s' (want=%d got=%d)", fnName, fn.TakesCount, lenArgs)
+			return nil
+		}
+		// build arg chain
+		firstArg, err := a.infer(s.Args[0])
 		if err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		paramType := NewType(fr.Takes[i], s.Tok.Line, s.Tok.Col)
-		if err := a.matchTypes(paramType, t); err != nil {
+		orig := firstArg
+		for i := 1; i < len(s.Args); i++ {
+			next, err := a.infer(s.Args[i])
+			if err != nil {
+				a.pushErr(err)
+				return nil
+			}
+			firstArg.setNext(next)
+			firstArg = next
+		}
+		// build parameter chain
+		param := NewType(fn.Takes[0], s.Tok.Line, s.Tok.Col)
+		origParam := param
+		for i := 1; i < len(fn.Takes); i++ {
+			next := NewType(fn.Takes[i], s.Tok.Line, s.Tok.Col)
+			param.setNext(next)
+			param = next
+		}
+		// this could've been slightly more efficient if we stored the length attribute of the linked list.
+		// but it is not that important because the users won't pass thousands of arguments.
+		// its only downside is the existence of the 6-lines-long code snippet below.
+		lenArgTypes := 1
+		argHead := orig
+		for argHead.next != nil {
+			lenArgTypes++
+			argHead = argHead.next
+		}
+		if err := a.matchTypes(origParam, orig); err != nil {
+			/* there are better ways. this is tightly-coupled to the implementation. */
 			if strings.HasPrefix(err.Error(), "unused") {
-				a.errorf(s.Tok.Line, s.Tok.Col, "excessive number of arguments passed to function call '%s'", fnName)
+				a.errorf(s.Tok.Line, s.Tok.Col, "excessive number of arguments passed to function call '%s' (want=%d got=%d)", fnName, fn.TakesCount, lenArgTypes)
 			} else if strings.HasPrefix(err.Error(), "mismatched") {
 				a.errorf(s.Tok.Line, s.Tok.Col, "wrong type of argument passed to function '%s'", fnName)
+			} else if strings.HasPrefix(err.Error(), "value ") {
+				a.errorf(s.Tok.Line, s.Tok.Col, "insufficient number of arguments passed to function call '%s' (want=%d got=%d)", fnName, fn.TakesCount, lenArgTypes)
 			} else {
 				a.pushErr(err)
 			}
 			return nil
 		}
 	}
-	ir.Returns = fr.Returns
+	ir.Returns = fn.Returns
 	for _, v := range s.Args {
 		ir.Takes = append(ir.Takes, a.toIrExpr(v))
 	}
@@ -1197,50 +1233,103 @@ func (a *Analyzer) typecheckFunCall(s *ast.FunctionCall) *IRFunctionCall {
 }
 
 func (a *Analyzer) typecheckFunCallFromNamespace(s *ast.FunctionCallFromNamespace) *IRFunctionCallFromNamespace {
+	// very similar to the above function.
 	fnName := s.Function.Ident.String()
-	irFnCall := IRFunctionCall{Name: fnName}
-	ir := &IRFunctionCallFromNamespace{Namespace: s.Namespace.Tok.Literal, IRFunctionCall: irFnCall}
-	line, col := s.Namespace.Tok.Line, s.Namespace.Tok.Col
-	fr := a.std.GetFunc(ir.Namespace, fnName)
-	if fr == nil {
-		a.errorf(line, col, "invoking of non-existent function '%s::%s'", ir.Namespace, fnName)
+	ns := s.Namespace.Tok.Literal
+	fn := a.std.GetFunc(ns, fnName)
+	line, col := s.Function.Tok.Line, s.Function.Tok.Col
+	if fn == nil {
+		a.errorf(line, col, "invoking of non-existent function '%s::%s'", ns, fnName)
 		return nil
 	}
-	if fr.ReturnsCount > 0 {
-		a.errorf(line, col, "unused value from function call '%s::%s'", ir.Namespace, fnName)
+	ir := &IRFunctionCallFromNamespace{Namespace: ns, IRFunctionCall: IRFunctionCall{Name: fnName}}
+	if fn.ReturnsCount > 0 {
+		a.errorf(line, col, "unused value from function call '%s::%s'", ns, fnName)
 		return nil
 	}
-	lenArgs := len(s.Function.Args)
-	if fr.TakesCount > lenArgs {
-		a.errorf(line, col, "missing arguments to function call '%s::%s'", ir.Namespace, fnName)
-		return nil
-	} else if fr.TakesCount < lenArgs {
-		a.errorf(line, col, "excessive number of arguments to function call '%s::%s'", ir.Namespace, fnName)
-		return nil
-	}
-	for i := 0; i < len(s.Function.Args); i++ {
-		t, err := a.infer(s.Function.Args[i])
+	switch fn.TakesCount {
+	case 0:
+		if len(s.Function.Args) > 0 {
+			a.errorf(line, col, "function '%s::%s' takes no arguments", ns, fnName)
+			return nil
+		}
+	default:
+		lenArgs := len(s.Function.Args)
+		if lenArgs == 0 {
+			a.errorf(line, col, "insufficient number of arguments to function '%s::%s' (want=%d got=%d)", ns, fnName, fn.TakesCount, lenArgs)
+			return nil
+		}
+		// build arg chain
+		firstArg, err := a.infer(s.Function.Args[0])
 		if err != nil {
 			a.pushErr(err)
 			return nil
 		}
-		paramType := NewType(fr.Takes[i], line, col)
-		if err := a.matchTypes(paramType, t); err != nil {
+		orig := firstArg
+		for i := 1; i < len(s.Function.Args); i++ {
+			next, err := a.infer(s.Function.Args[i])
+			if err != nil {
+				a.pushErr(err)
+				return nil
+			}
+			firstArg.setNext(next)
+			firstArg = next
+		}
+		// build parameter chain
+		param := NewType(fn.Takes[0], line, col)
+		origParam := param
+		for i := 1; i < len(fn.Takes); i++ {
+			next := NewType(fn.Takes[i], line, col)
+			param.setNext(next)
+			param = next
+		}
+
+		fmt.Println("fntakescount. ", fn.TakesCount)
+
+		// [[copy]]
+		// this could've been  more efficient if we stored the length attribute of the linked list.
+		// but it is not that important because the users won't pass thousands of arguments.
+		// its only downside is the existence of the 6-lines-long code snippet below.
+		lenArgTypes := 1
+		argHead := orig
+		for argHead.next != nil {
+			lenArgTypes++
+			argHead = argHead.next
+		}
+		if err := a.matchTypes(origParam, orig); err != nil {
+			/* there are better ways. this is tightly-coupled to the implementation. */
 			if strings.HasPrefix(err.Error(), "unused") {
-				a.errorf(line, col, "excessive number of arguments passed to function call '%s::%s'", ir.Namespace, fnName)
+				a.errorf(line, col, "excessive number of arguments passed to function call '%s::%s' (want=%d got=%d)", ns, fnName, fn.TakesCount, lenArgTypes)
 			} else if strings.HasPrefix(err.Error(), "mismatched") {
-				a.errorf(line, col, "wrong type of argument passed to function '%s::%s'", ir.Namespace, fnName)
+				a.errorf(line, col, "wrong type of argument passed to function '%s::%s'", ns, fnName)
+			} else if strings.HasPrefix(err.Error(), "value ") {
+				a.errorf(line, col, "insufficient number of arguments passed to function call '%s::%s' (want=%d got=%d)", ns, fnName, fn.TakesCount, lenArgTypes)
 			} else {
 				a.pushErr(err)
 			}
 			return nil
 		}
 	}
-	ir.Returns = fr.Returns
+	ir.Returns = fn.Returns
 	for _, v := range s.Function.Args {
 		ir.Takes = append(ir.Takes, a.toIrExpr(v))
 	}
 	ir.ReturnsCount = len(ir.Returns)
 	ir.TakesCount = len(ir.Takes)
+	return ir
+}
+
+func (a *Analyzer) produceReturnIR(s *ast.ReturnStatement) *IRReturn {
+	ir := &IRReturn{}
+	for _, v := range s.ReturnValues {
+		ir.ReturnValues = append(ir.ReturnValues, a.toIrExpr(v))
+		t, err := a.infer(v)
+		if err != nil {
+			a.pushErr(err)
+			return nil
+		}
+		ir.ReturnTypes = append(ir.ReturnTypes, t.typ)
+	}
+	ir.ReturnCount = len(s.ReturnValues)
 	return ir
 }
