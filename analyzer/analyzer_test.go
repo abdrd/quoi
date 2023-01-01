@@ -707,3 +707,19 @@ func TestGeneral3(t *testing.T) {
 	}
 	fmt.Println(program)
 }
+
+func TestOps3(t *testing.T) {
+	input := `
+		listof int nx = [12, 16, 198, 156].
+		int n = (' nx 1).
+	`
+	a := _new(input)
+	program := a.Analyze()
+	if len(a.Errs) > 0 {
+		for _, v := range a.Errs {
+			t.Logf("Analyzer err : %d:%d -- %s\n", v.Line, v.Column, v.Msg)
+		}
+		return
+	}
+	fmt.Println(program)
+}

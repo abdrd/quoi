@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// TODO check numeric value ranges (64-bit integers)
+
 type Err struct {
 	Line, Column uint
 	Msg          string
