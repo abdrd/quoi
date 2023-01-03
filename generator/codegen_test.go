@@ -59,6 +59,8 @@ func Test1(t *testing.T) {
 			int x = 5.
 		} elseif false { 
 			string y = "Hello".
+		} elseif (= 5 (+ 1 1)) {
+			User fACXAQ_1351_x = User {}.
 		} else {
 			if (not (lt 5 6)) { bool z = true. }
 		}

@@ -154,9 +154,9 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 				}
 			}
 			b.writef(")")
-		case "gt", "gte", "lt", "lte", "and", "or":
+		case "gt", "gte", "lt", "lte", "and", "or", "=":
 			m := map[string]string{
-				"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "and": "&&", "or": "||",
+				"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "and": "&&", "or": "||", "=": "==",
 			}
 			b.writef("(%s %s %s)", g.expr(e.Operands[0]), m[e.Operator], g.expr(e.Operands[1]))
 		case "not":

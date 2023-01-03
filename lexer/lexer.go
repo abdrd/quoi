@@ -11,8 +11,7 @@ const eof = rune(-1)
 
 type (
 	state int
-	// for little syntax errors to pass to the parser
-	Err struct {
+	Err   struct {
 		Msg          string
 		Column, Line int
 	}

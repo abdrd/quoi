@@ -1,3 +1,11 @@
+// The code is unnecessarily verbose.
+// I was just learning how to parse.
+// AST structure is a bit weird too.
+// Future compilers will be a lot simpler.
+// I could've refactored this project, but I got other stuff to do.
+//
+//
+
 package parser
 
 import (
@@ -509,6 +517,15 @@ func (p *Parser) parseExpr() ast.Expr {
 		identTok := p.tok
 		switch p.peek().Type {
 		case token.OPENING_PAREN:
+			// quick fix
+			// (+ 1 2 3 x (* 5 6))
+			// parser thinks x is a function, and we are invoking it
+			// with 5.
+
+			if isOperator(p.peekN(2)) {
+				return p.parseIdentifier(false)
+			}
+
 			return p.parseFunctionCall(identTok, false, "")
 		case token.DOUBLE_COLON:
 			return p.parseFunctionCallFromNamespace(identTok, false)
