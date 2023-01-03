@@ -6,11 +6,11 @@ import (
 )
 
 type IRProgram struct {
-	IRStatements []IRStatement
+	Stmts []IRStatement
 }
 
 func (i *IRProgram) Push(stmt IRStatement) {
-	i.IRStatements = append(i.IRStatements, stmt)
+	i.Stmts = append(i.Stmts, stmt)
 }
 
 type IRStatement interface {
@@ -176,7 +176,7 @@ func (IRDatatypeLiteral) irExpr()           {}
 
 func (p *IRProgram) String() string {
 	res := "PROGRAM!(\n"
-	for _, v := range p.IRStatements {
+	for _, v := range p.Stmts {
 		res += v.String() + "\t\n"
 	}
 	res += ")"
@@ -267,6 +267,10 @@ func (e *IRElse) String() string {
 	}
 	res += "}"
 	return res
+}
+
+func (*IRElseIf) String() string {
+	return "ELSEIF STRING"
 }
 
 func (r *IRReturn) String() string {

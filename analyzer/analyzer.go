@@ -26,7 +26,6 @@ func newErr(line, col uint, msgf string, args ...interface{}) Err {
 
 type Analyzer struct {
 	program *ast.Program
-	curExpr *ast.Expr
 	env     *ScopeStack
 	std     *StandardLibrary
 	Errs    []Err
@@ -36,7 +35,7 @@ type Analyzer struct {
 }
 
 func New(program *ast.Program) *Analyzer {
-	a := &Analyzer{program: program, curExpr: nil, env: NewScopeStack()}
+	a := &Analyzer{program: program, env: NewScopeStack()}
 	a.std = InitStandardLibrary(a)
 	return a
 }
@@ -379,9 +378,9 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "initialization of non-existent datatype '%s'", expr.Tok.Literal)
 		}
 		if len(expr.Fields) > datatype.FieldCount {
-			unknownField := expr.Fields[datatype.FieldCount+1]
+			unknownField := expr.Fields[datatype.FieldCount]
 			dtName := datatype.Name
-			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "unknown field '%s' in datatype literal '%s'", unknownField, dtName)
+			return nil, newErr(expr.Tok.Line, expr.Tok.Col, "unknown field '%s' in datatype literal '%s'", unknownField.Name, dtName)
 		}
 		exprFieldsNameTypeMap := map[string]*Type{}
 		datatypeFieldsNameTypeMap := map[string]*Type{}
@@ -651,30 +650,54 @@ func (a *Analyzer) infer(expr ast.Expr) (*Type, error) {
 func (a *Analyzer) typecheckStatement(s ast.Statement, returnWanted *returnWanted) IRStatement {
 	switch s := s.(type) {
 	case *ast.VariableDeclarationStatement:
-		return a.typecheckVarDecl(s)
+		if ir := a.typecheckVarDecl(s); ir != nil {
+			return ir
+		}
 	case *ast.ListVariableDeclarationStatement:
-		return a.typecheckListDecl(s)
+		if ir := a.typecheckListDecl(s); ir != nil {
+			return ir
+		}
 	case *ast.IfStatement:
-		return a.typecheckIfStmt(s, returnWanted)
+		if ir := a.typecheckIfStmt(s, returnWanted); ir != nil {
+			return ir
+		}
 	case *ast.DatatypeDeclaration:
-		return a.typecheckDatatypeDecl(s)
+		if ir := a.typecheckDatatypeDecl(s); ir != nil {
+			return ir
+		}
 	case *ast.SubsequentVariableDeclarationStatement:
-		return a.typecheckSubseqVarDecl(s)
+		if ir := a.typecheckSubseqVarDecl(s); ir != nil {
+			return ir
+		}
 	case *ast.ReassignmentStatement:
-		return a.typecheckReassignment(s)
+		if ir := a.typecheckReassignment(s); ir != nil {
+			return ir
+		}
 	case *ast.BlockStatement:
-		return a.typecheckBlock(s, returnWanted)
+		if ir := a.typecheckBlock(s, returnWanted); ir != nil {
+			return ir
+		}
 	case *ast.LoopStatement:
-		return a.typecheckLoop(s, returnWanted)
+		if ir := a.typecheckLoop(s, returnWanted); ir != nil {
+			return ir
+		}
 	case *ast.FunctionDeclarationStatement:
-		return a.typecheckFunDecl(s)
+		if ir := a.typecheckFunDecl(s); ir != nil {
+			return ir
+		}
 	case *ast.FunctionCall:
-		return a.typecheckFunCall(s)
+		if ir := a.typecheckFunCall(s); ir != nil {
+			return ir
+		}
 	case *ast.FunctionCallFromNamespace:
-		return a.typecheckFunCallFromNamespace(s)
+		if ir := a.typecheckFunCallFromNamespace(s); ir != nil {
+			return ir
+		}
 	case *ast.ReturnStatement:
 		// I realized I forgot to produce IR for return statements.
-		return a.produceReturnIR(s)
+		if ir := a.produceReturnIR(s); ir != nil {
+			return ir
+		}
 	}
 	return nil
 }
@@ -1285,8 +1308,6 @@ func (a *Analyzer) typecheckFunCallFromNamespace(s *ast.FunctionCallFromNamespac
 			param.setNext(next)
 			param = next
 		}
-
-		fmt.Println("fntakescount. ", fn.TakesCount)
 
 		// [[copy]]
 		// this could've been  more efficient if we stored the length attribute of the linked list.
