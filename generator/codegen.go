@@ -61,15 +61,20 @@ func (g *Generator) code() string {
 }
 
 func (g *Generator) Generate() string {
-	nodes := g.prg.IRStatements
-	for _, n := range nodes {
-		switch n := n.(type) {
-		case *analyzer.IRVariable:
-			g.vardecl(n)
-		}
+	for _, n := range g.prg.Stmts {
+		g.stmt(n)
 	}
 	g.assemble()
 	return g.code()
+}
+
+func (g *Generator) stmt(s analyzer.IRStatement) {
+	switch s := s.(type) {
+	case *analyzer.IRVariable:
+		g.vardecl(s)
+	case *analyzer.IRIf:
+		g.if_(s)
+	}
 }
 
 func (g *Generator) exprList(ex []analyzer.IRExpression, lenArgs int) string {
@@ -94,9 +99,9 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 		return e.Value
 	case *analyzer.IRDatatypeLiteral:
 		b := newStringBuilder()
-		b.writef("%s{\n\t", e.Name)
+		b.writef("%s{\n", e.Name)
 		for k, v := range e.FieldsAndValues {
-			b.writef("%s: %s,\n\t", k, g.expr(v))
+			b.writef("\t%s: %s,\n", k, g.expr(v))
 		}
 		b.writef("}")
 		return b.String()
@@ -142,15 +147,20 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 		switch e.Operator {
 		case "+", "-", "/", "*":
 			b.writef("(")
-			for _, v := range e.Operands {
-				b.writef("%s %s", e.Operator, v)
+			for i, v := range e.Operands {
+				b.writef("%s", g.expr(v))
+				if i != len(e.Operands)-1 {
+					b.writef(" %s ", e.Operator)
+				}
 			}
 			b.writef(")")
-		case "gt", "gte", "lt", "lte", "and", "or":
+		case "gt", "gte", "lt", "lte", "and", "or", "=":
 			m := map[string]string{
-				"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "and": "&&", "or": "||",
+				"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "and": "&&", "or": "||", "=": "==",
 			}
-			b.writef("(%s %s %s)", e.Operands[0], m[e.Operator], e.Operands[1])
+			b.writef("(%s %s %s)", g.expr(e.Operands[0]), m[e.Operator], g.expr(e.Operands[1]))
+		case "not":
+			b.writef("!(%s)", g.expr(e.Operands[0]))
 		default:
 			b.writef("UNKNOWN OPERATOR %s", e.Operator)
 		}
@@ -164,5 +174,53 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 }
 
 func (g *Generator) vardecl(d *analyzer.IRVariable) {
-	g.w("var %s %s = %s", d.Name, d.Type, g.expr(d.Value))
+	g.w("var %s %s = %s\n", d.Name, d.Type, g.expr(d.Value))
+}
+
+func (g *Generator) if_(d *analyzer.IRIf) {
+	g.w("if %s {\n\t", g.expr(d.Cond))
+	for _, v := range d.Block {
+		if v, ok := v.(*analyzer.IRElseIf); ok {
+			g.elseif(v)
+			continue
+		}
+		g.stmt(v)
+	}
+	g.w("}")
+	if d.Alternative != nil {
+		g.elseif(d.Alternative)
+	}
+	if d.Default != nil {
+		g.else_(d.Default)
+	}
+}
+
+func (g *Generator) elseif(d *analyzer.IRElseIf) {
+	g.w(" else if %s {\n\t", g.expr(d.Cond))
+	for _, v := range d.Block {
+		if v, ok := v.(*analyzer.IRElseIf); ok {
+			g.elseif(v)
+			continue
+		}
+		g.stmt(v)
+	}
+	g.w("\n}")
+	if d.Alternative != nil {
+		g.elseif(d.Alternative)
+	}
+	if d.Default != nil {
+		g.else_(d.Default)
+	}
+}
+
+func (g *Generator) else_(d *analyzer.IRElse) {
+	g.w(" else {\n\t")
+	for _, v := range d.Block {
+		if v, ok := v.(*analyzer.IRElseIf); ok {
+			g.elseif(v)
+			continue
+		}
+		g.stmt(v)
+	}
+	g.w("\n}")
 }
