@@ -15,13 +15,9 @@ const STDOUT = `
 	`
 
 const MATH = `
-		fun Math_add(int n, int 2) -> int {}
-		fun Math_sub(int n, int n2) -> int {}
-		fun Math_div(int n, int n2) -> int {}
-		fun Math_mul(int n, int n2) -> int {}
 		fun Math_mod(int n, int n2) -> int {}
 		fun Math_pow(int n, int n2) -> int {}
-		fun Math_sqrt(int n, int n2) -> int {}
+		fun Math_sqrt(int n) -> int {}
 	`
 
 const STRING = `
@@ -36,7 +32,6 @@ const INT = `
 	`
 
 const LIST = `
-		; ONLY THESE 3 PRIMITIVE TYPES
 		fun List_replace_int(listof int nx, int idx, int new_val) -> listof int {}
 		fun List_replace_string(listof string strx, int idx, string new_val) -> listof string {}
 		fun List_replace_bool(listof bool bx, int idx, bool new_val) -> listof bool {}

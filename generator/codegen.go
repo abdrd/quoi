@@ -2,8 +2,10 @@ package generator
 
 import (
 	"fmt"
+	"math/rand"
 	"quoi/analyzer"
 	"strings"
+	"time"
 )
 
 type stringBuilder struct {
@@ -24,8 +26,9 @@ func (s *stringBuilder) String() string {
 
 // Go code producer
 type Generator struct {
-	prg          *analyzer.IRProgram
-	header, body *stringBuilder
+	prg                  *analyzer.IRProgram
+	header, global, body *stringBuilder
+	addedImports         map[string]bool
 }
 
 func New(prg *analyzer.IRProgram) *Generator {
@@ -34,29 +37,42 @@ func New(prg *analyzer.IRProgram) *Generator {
 
 		header: newStringBuilder(),
 		body:   newStringBuilder(),
+		// declarations
+		global:       newStringBuilder(),
+		addedImports: make(map[string]bool),
 	}
 	g.header.writef("package main\n\nimport(\n")
+	g.body.writef("func main() {\n")
 	return g
 }
 
 func (g *Generator) addImport(pkg string) {
+	if g.addedImports[pkg] {
+		return
+	}
+	g.addedImports[pkg] = true
 	g.header.writef("\t\"%s\"\n", pkg)
 }
 
-func (g *Generator) closeImport() {
-	g.header.writef(")\n")
-}
-
+// body
 func (g *Generator) w(strf string, args ...interface{}) {
 	g.body.writef(strf, args...)
 }
 
+// function, and datatype declarations
+func (g *Generator) wd(strf string, args ...interface{}) {
+	g.global.writef(strf, args...)
+}
+
 func (g *Generator) assemble() {
 	g.header.writef(")\n\n")
+	g.body.writef("\n}\n")
+	g.header.writef(g.global.b.String())
 	g.header.writef(g.body.b.String())
 }
 
 func (g *Generator) code() string {
+	g.addRuntimeFunctions()
 	return g.header.b.String()
 }
 
@@ -68,23 +84,64 @@ func (g *Generator) Generate() string {
 	return g.code()
 }
 
-func (g *Generator) stmt(s analyzer.IRStatement) {
+func (g *Generator) addRuntimeFunctions() {
+	// add function definitions for stdlib functions. mangle their names to
+	// avoid redefinitions by the user.
+	rand.Seed(time.Now().UnixNano())
+	var randomFn = func(fnName string) string {
+		return fmt.Sprintf("%s_%d", fnName, rand.Intn(10000))
+	}
+	// TODO
+	_ = randomFn
+}
+
+func (g *Generator) stmt1(s analyzer.IRStatement) string {
 	switch s := s.(type) {
 	case *analyzer.IRVariable:
-		g.vardecl(s)
+		return g.vardecl(s)
 	case *analyzer.IRIf:
-		g.if_(s)
+		return g.if_(s)
+	case *analyzer.IRBlock:
+		return g.block(s)
+	case *analyzer.IRDatatype:
+		return g.dt(s)
+	case *analyzer.IRFunction:
+		return g.fun(s)
+	case *analyzer.IRFunctionCall:
+		return g.funcall(s)
+	case *analyzer.IRFunctionCallFromNamespace:
+		return g.funcallns(s)
+	case *analyzer.IRLoop:
+		return g.loop(s)
+	case *analyzer.IRReassigment:
+		return g.reas(s)
+	case *analyzer.IRReturn:
+		return g.ret(s)
+	case *analyzer.IRBreak:
+		return "break\n"
+	case *analyzer.IRContinue:
+		return "continue\n"
+	}
+	panic("unknown statement " + s.String())
+}
+
+func (g *Generator) stmt(s analyzer.IRStatement) {
+	switch s.(type) {
+	case *analyzer.IRFunction, *analyzer.IRDatatype:
+		g.wd(g.stmt1(s))
+	default:
+		g.w(g.stmt1(s))
 	}
 }
 
 func (g *Generator) exprList(ex []analyzer.IRExpression, lenArgs int) string {
 	b := newStringBuilder()
 	for i, v := range ex {
-		putComma := i != lenArgs
 		b.writef(g.expr(v))
-		if putComma {
-			b.writef(", ")
+		if i == lenArgs-1 {
+			continue
 		}
+		b.writef(", ")
 	}
 	return b.String()
 }
@@ -129,19 +186,6 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 		g.addImport(ns)
 		b.writef("%s.%s", ns, g.expr(&e.IRFunctionCall))
 		return b.String()
-	case *analyzer.IRIndex:
-		b := newStringBuilder()
-		// TODO bounds-checking
-		var idx string
-		if v, ok := e.Expr.(*analyzer.IRPrefExpr); ok {
-			idx = g.expr(v.Operands[1])
-		}
-		b.writef("%s[%s]", e.Expr, idx)
-		return b.String()
-	case *analyzer.IRNot:
-		b := newStringBuilder()
-		b.writef("!(%s)", g.expr(e.Expr))
-		return b.String()
 	case *analyzer.IRPrefExpr:
 		b := newStringBuilder()
 		switch e.Operator {
@@ -161,6 +205,16 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 			b.writef("(%s %s %s)", g.expr(e.Operands[0]), m[e.Operator], g.expr(e.Operands[1]))
 		case "not":
 			b.writef("!(%s)", g.expr(e.Operands[0]))
+		case "'":
+			var idx string
+			idx = g.expr(e.Operands[1])
+			b.writef("%s[%s]", g.expr(e.Operands[0]), idx)
+			// bounds checking
+			b.writef("\nif %s > len(%s)-1 { panic(\"index '%s' is out of range\") }\n", idx, g.expr(e.Operands[0]), idx)
+		case "set":
+			b.writef("%s.%s = %s\n", g.expr(e.Operands[0]), g.expr(e.Operands[1]), g.expr(e.Operands[2]))
+		case "get":
+			b.writef("%s.%s\n", g.expr(e.Operands[0]), g.expr(e.Operands[1]))
 		default:
 			b.writef("UNKNOWN OPERATOR %s", e.Operator)
 		}
@@ -173,54 +227,165 @@ func (g *Generator) expr(e analyzer.IRExpression) string {
 	return "NOT_IMPLEMENTED: " + e.String()
 }
 
-func (g *Generator) vardecl(d *analyzer.IRVariable) {
-	g.w("var %s %s = %s\n", d.Name, d.Type, g.expr(d.Value))
+func (g *Generator) vardecl(d *analyzer.IRVariable) string {
+	typ := d.Type
+	if strings.Contains(typ, "list-") {
+		typ = "[]" + strings.Split(typ, "list-")[1]
+	}
+	return fmt.Sprintf("\nvar %s %s = %s\n", d.Name, typ, g.expr(d.Value))
 }
 
-func (g *Generator) if_(d *analyzer.IRIf) {
-	g.w("if %s {\n\t", g.expr(d.Cond))
+func (g *Generator) if_(d *analyzer.IRIf) string {
+	b := newStringBuilder()
+	b.writef("if %s {\n\t", g.expr(d.Cond))
 	for _, v := range d.Block {
 		if v, ok := v.(*analyzer.IRElseIf); ok {
-			g.elseif(v)
+			b.writef(g.elseif(v))
 			continue
 		}
-		g.stmt(v)
+		b.writef(g.stmt1(v))
 	}
-	g.w("}")
+	b.writef("}")
 	if d.Alternative != nil {
-		g.elseif(d.Alternative)
+		b.writef(g.elseif(d.Alternative))
 	}
 	if d.Default != nil {
-		g.else_(d.Default)
+		b.writef(g.else_(d.Default))
 	}
+	return b.String()
 }
 
-func (g *Generator) elseif(d *analyzer.IRElseIf) {
-	g.w(" else if %s {\n\t", g.expr(d.Cond))
+func (g *Generator) elseif(d *analyzer.IRElseIf) string {
+	b := newStringBuilder()
+	b.writef(" else if %s {\n\t", g.expr(d.Cond))
 	for _, v := range d.Block {
 		if v, ok := v.(*analyzer.IRElseIf); ok {
-			g.elseif(v)
+			b.writef(g.elseif(v))
 			continue
 		}
-		g.stmt(v)
+		b.writef(g.stmt1(v))
 	}
-	g.w("\n}")
+	b.writef("\n}")
 	if d.Alternative != nil {
-		g.elseif(d.Alternative)
+		b.writef(g.elseif(d.Alternative))
 	}
 	if d.Default != nil {
-		g.else_(d.Default)
+		b.writef(g.else_(d.Default))
 	}
+	return b.String()
 }
 
-func (g *Generator) else_(d *analyzer.IRElse) {
-	g.w(" else {\n\t")
+func (g *Generator) else_(d *analyzer.IRElse) string {
+	b := newStringBuilder()
+	b.writef(" else {\n\t")
 	for _, v := range d.Block {
 		if v, ok := v.(*analyzer.IRElseIf); ok {
-			g.elseif(v)
+			b.writef(g.elseif(v))
 			continue
 		}
-		g.stmt(v)
+		b.writef(g.stmt1(v))
 	}
-	g.w("\n}")
+	b.writef("\n}")
+	return b.String()
+}
+
+func (g *Generator) block(d *analyzer.IRBlock) string {
+	b := newStringBuilder()
+	b.writef("{\n\t")
+	for _, v := range d.Stmts {
+		b.writef(g.stmt1(v))
+	}
+	b.writef("\n}\n")
+	return b.String()
+}
+
+func (g *Generator) dt(d *analyzer.IRDatatype) string {
+	b := newStringBuilder()
+	b.writef("type %s struct {\n", d.Name)
+	for _, v := range d.Fields {
+		b.writef("\t%s %s\n", v.Name, v.Type)
+	}
+	b.writef("}\n")
+	return b.String()
+}
+
+func (g *Generator) fun(d *analyzer.IRFunction) string {
+	b := newStringBuilder()
+	b.writef("func %s(", d.Name)
+	for i, v := range d.Takes {
+		b.writef("%s %s", d.ParamNames[i], v)
+		if i != len(d.Takes)-1 {
+			b.writef(", ")
+		}
+	}
+	b.writef(") ")
+	if d.ReturnsCount > 0 {
+		b.writef("(")
+		for i, v := range d.Returns {
+			b.writef(v)
+			if i != len(d.Takes)-1 {
+				b.writef(", ")
+			}
+		}
+		b.writef(") ")
+	}
+	b.writef("{\n")
+	for _, v := range d.Block {
+		b.writef(g.stmt1(v))
+	}
+	b.writef("\n}\n")
+	return b.String()
+}
+
+func (g *Generator) funcall(d *analyzer.IRFunctionCall) string {
+	b := newStringBuilder()
+	b.writef("%s(", d.Name)
+	b.writef(g.exprList(d.Takes, d.TakesCount))
+	b.writef(")\n")
+	return b.String()
+}
+
+func (g *Generator) funcallns(d *analyzer.IRFunctionCallFromNamespace) string {
+	b := newStringBuilder()
+	ns := d.Namespace
+	nsim := map[string]string{
+		"Stdout": "fmt",
+		"Math":   "math",
+		"String": "strings",
+	}
+	nsfm := map[string]string{
+		"println": "Println",
+		"print":   "Print",
+		"mod":     "Mod10",
+		"pow":     "Pow",
+		"sqrt":    "Sqrt",
+	}
+	pkg := nsim[ns]
+	g.addImport(pkg)
+	b.writef("%s.", pkg)
+	d.IRFunctionCall.Name = nsfm[d.Name]
+	b.writef(g.funcall(&d.IRFunctionCall))
+	return b.String()
+}
+
+func (g *Generator) loop(d *analyzer.IRLoop) string {
+	b := newStringBuilder()
+	b.writef("for %s {\n", g.expr(d.Cond))
+	for _, v := range d.Stmts {
+		b.writef(g.stmt1(v))
+	}
+	b.writef("}\n")
+	return b.String()
+}
+
+func (g *Generator) ret(d *analyzer.IRReturn) string {
+	b := newStringBuilder()
+	b.writef("return %s\n", g.exprList(d.ReturnValues, d.ReturnCount))
+	return b.String()
+}
+
+func (g *Generator) reas(d *analyzer.IRReassigment) string {
+	b := newStringBuilder()
+	b.writef("%s = %s\n", d.Name, g.expr(d.NewValue))
+	return b.String()
 }

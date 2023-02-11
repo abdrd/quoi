@@ -63,8 +63,75 @@ func Test1(t *testing.T) {
 			User fACXAQ_1351_x = User {}.
 		} else {
 			if (not (lt 5 6)) { bool z = true. }
-		}
+		}	
 		
+		listof int numbers = [1, 2, 3].
+
+		int two = (' numbers 1).
 	`
+	fmt.Println(setup(input).Generate())
+}
+
+func Test2(t *testing.T) {
+	input := `
+		block end
+		datatype User {
+			string name
+			int age
+		}
+		fun a() {}
+		fun b(string name) -> int { return 6. }
+		fun c(string x, int y) -> bool, User { return true, User{}. }
+	
+		Stdout::println("HEllo").	
+		`
+
+	fmt.Println(setup(input).Generate())
+}
+
+func TestPref1(t *testing.T) {
+	input := `
+		datatype User {
+			string name
+			int age
+		}
+
+		User u = User { name="Jennifer" }.
+		string name = (get u name).
+		Stdout::println(name).
+	`
+	fmt.Println(setup(input).Generate())
+}
+
+func Test3(t *testing.T) {
+	input := `
+		datatype User {
+			string name
+			int age
+		}
+
+		listof User ux = [ User{}, User{}, User{age=55} ].
+
+		loop true {
+			break.
+			if false {
+				continue.
+			}
+		}
+
+	`
+	fmt.Println(setup(input).Generate())
+}
+
+func Test4(t *testing.T) {
+	input := `
+		int i = 0.
+		loop (lt i 10) {
+		string msg = String::concat("#", String::from_int(i)).
+		Stdout::println(msg).
+		Stdout::print("\n").
+		i = (+ i 1).
+	}`
+
 	fmt.Println(setup(input).Generate())
 }
