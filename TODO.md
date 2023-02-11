@@ -1,3 +1,6 @@
+- [ ] AST structure, and general code quality is bad.
+- [ ] Parser error messages are bad.
+
 ### Lexer
 - [ ] Fix column, and line reporting.
 
@@ -17,6 +20,3 @@
                          ^
   10:24 TypeError: invalid expression of type 'bool' for 'lt' operator
   ```
-
-
-- [ ] Handle divide-by-zero, and "out-of-bounds". (Probably in codegen)

@@ -95,6 +95,7 @@ func (a *Analyzer) registerFunctionsAndDatatypes() {
 func (a *Analyzer) registerFuncSignature(s *ast.FunctionDeclarationStatement) error {
 	ir := &IRFunction{Name: s.Name.String(), TakesCount: len(s.Params), ReturnsCount: len(s.ReturnTypes)}
 	for _, v := range s.Params {
+		ir.ParamNames = append(ir.ParamNames, v.Name.String())
 		ir.Takes = append(ir.Takes, fnParamTypeRepr(v))
 	}
 	for _, v := range s.ReturnTypes {
@@ -106,6 +107,7 @@ func (a *Analyzer) registerFuncSignature(s *ast.FunctionDeclarationStatement) er
 func (a *Analyzer) registerStdFuncSignature(ns, name string, s *ast.FunctionDeclarationStatement) {
 	ir := &IRFunction{Name: s.Name.String(), TakesCount: len(s.Params), ReturnsCount: len(s.ReturnTypes)}
 	for _, v := range s.Params {
+		ir.ParamNames = append(ir.ParamNames, v.Name.String())
 		ir.Takes = append(ir.Takes, fnParamTypeRepr(v))
 	}
 	for _, v := range s.ReturnTypes {
@@ -698,6 +700,14 @@ func (a *Analyzer) typecheckStatement(s ast.Statement, returnWanted *returnWante
 		if ir := a.produceReturnIR(s); ir != nil {
 			return ir
 		}
+	case *ast.BreakStatement:
+		if ir := a.produceBreakIR(s); ir != nil {
+			return ir
+		}
+	case *ast.ContinueStatement:
+		if ir := a.produceContinueIR(s); ir != nil {
+			return ir
+		}
 	}
 	return nil
 }
@@ -1089,11 +1099,8 @@ func (a *Analyzer) typecheckFunDecl(s *ast.FunctionDeclarationStatement) *IRFunc
 	defer func() { a.seenReturn = false }()
 	ir := &IRFunction{Name: s.Name.String(), TakesCount: len(s.Params), ReturnsCount: len(s.ReturnTypes)}
 	for _, v := range s.Params {
-		if v.IsList {
-			ir.Takes = append(ir.Takes, TypeList(v.TypeOfList.Literal))
-		} else {
-			ir.Takes = append(ir.Takes, v.Tok.Literal)
-		}
+		ir.ParamNames = append(ir.ParamNames, v.Name.String())
+		ir.Takes = append(ir.Takes, fnParamTypeRepr(v))
 		param := &IRVariable{Name: v.Name.String()} // value is non-significant.
 		if v.IsList {
 			param.Type = TypeList(v.TypeOfList.Literal)
@@ -1355,4 +1362,12 @@ func (a *Analyzer) produceReturnIR(s *ast.ReturnStatement) *IRReturn {
 	}
 	ir.ReturnCount = len(s.ReturnValues)
 	return ir
+}
+
+func (a *Analyzer) produceBreakIR(s *ast.BreakStatement) *IRBreak {
+	return &IRBreak{}
+}
+
+func (a *Analyzer) produceContinueIR(s *ast.ContinueStatement) *IRContinue {
+	return &IRContinue{}
 }

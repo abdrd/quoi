@@ -34,10 +34,10 @@ type IRSubseq struct {
 }
 
 type IRFunction struct {
-	Name                     string
-	Takes, Returns           []string
-	TakesCount, ReturnsCount int
-	Block                    []IRStatement
+	Name                       string
+	ParamNames, Takes, Returns []string
+	TakesCount, ReturnsCount   int
+	Block                      []IRStatement
 }
 
 type IRIf struct {
@@ -63,6 +63,9 @@ type IRReturn struct {
 	ReturnValues []IRExpression
 	ReturnCount  int
 }
+
+type IRBreak struct{}
+type IRContinue struct{}
 
 type IRDatatypeField struct {
 	Type, Name string
@@ -125,14 +128,6 @@ type IRPrefExpr struct {
 	Operands []IRExpression
 }
 
-type IRNot struct {
-	Expr IRExpression
-}
-
-type IRIndex struct {
-	Expr IRExpression
-}
-
 type IRBlock struct {
 	Stmts []IRStatement
 }
@@ -150,6 +145,8 @@ func (IRIf) irStmt()                        {}
 func (IRElseIf) irStmt()                    {}
 func (IRElse) irStmt()                      {}
 func (IRReturn) irStmt()                    {}
+func (IRBreak) irStmt()                     {}
+func (IRContinue) irStmt()                  {}
 func (IRFunctionCallFromNamespace) irStmt() {}
 func (IRFunctionCall) irStmt()              {}
 func (IRDatatype) irStmt()                  {}
@@ -167,8 +164,6 @@ func (IRList) irExpr()                      {}
 func (IRFunctionCall) irExpr()              {}
 func (IRFunctionCallFromNamespace) irExpr() {}
 func (IRPrefExpr) irExpr()                  {}
-func (IRNot) irExpr()                       {}
-func (IRIndex) irExpr()                     {}
 func (IRDatatypeLiteral) irExpr()           {}
 
 /* ************ */
@@ -293,6 +288,20 @@ func (r *IRReturn) String() string {
 	}
 	res += "])"
 	return res
+}
+
+func (r *IRBreak) String() string {
+	if r == nil {
+		return "<nil_break>"
+	}
+	return "break!"
+}
+
+func (r *IRContinue) String() string {
+	if r == nil {
+		return "<nil_continue>"
+	}
+	return "continue!"
 }
 
 func (f *IRFunctionCallFromNamespace) String() string {
@@ -437,20 +446,6 @@ func (l *IRList) String() string {
 	}
 	res += "])"
 	return res
-}
-
-func (n *IRNot) String() string {
-	if n == nil {
-		return "<nil_not>"
-	}
-	return fmt.Sprintf("not!(%s)", n.Expr)
-}
-
-func (i *IRIndex) String() string {
-	if i == nil {
-		return "<nil_index>"
-	}
-	return fmt.Sprintf("index!(%s)", i.Expr)
 }
 
 func (d *IRDatatypeLiteral) String() string {
